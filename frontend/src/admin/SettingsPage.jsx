@@ -39,6 +39,7 @@ export default function SettingsPage() {
   const [s, setS] = useState(null);
   const original = useRef(null);
   const [storeName, setStoreName] = useState("");
+  const origStore = useRef("");
   const [pin, setPin] = useState({ value: "", clear: false });
   const [saved, flash] = useSavedFlag();
   const [error, setError] = useState(null);
@@ -50,7 +51,7 @@ export default function SettingsPage() {
   };
   useEffect(() => {
     load();
-    getStoreSettings().then((d) => d && setStoreName(d.storeName ?? d.store_name ?? "")).catch(() => {});
+    getStoreSettings().then((d) => { if (!d) return; const n = d.storeName ?? d.store_name ?? ""; origStore.current = n; setStoreName(n); }).catch(() => {});
   }, []);
 
   // Pencarian: saat ada kata kunci, semua kelompok tampil berurutan lalu baris/kartu yang tidak cocok disembunyikan.
@@ -91,7 +92,7 @@ export default function SettingsPage() {
     o[path[path.length - 1]] = value;
     return next;
   });
-  const dirty = JSON.stringify(s) !== original.current || pin.value !== "" || pin.clear;
+  const dirty = JSON.stringify(s) !== original.current || pin.value !== "" || pin.clear || storeName !== origStore.current;
 
   async function save() {
     setError(null);
@@ -100,12 +101,13 @@ export default function SettingsPage() {
     try {
       const security = pin.clear ? { clearPin: true } : pin.value ? { pin: pin.value } : undefined;
       const body = {
-        event: s.event, editor: s.editor, camera: s.camera, printing: s.printing, display: s.display, session: s.session, gif: s.gif, result: s.result, boomerang: s.boomerang, video: s.video, animated: s.animated,
+        event: s.event, camera: s.camera, printing: s.printing, display: s.display, session: s.session, gif: s.gif, result: s.result, boomerang: s.boomerang, video: s.video, animated: s.animated,
         general: { modes: s.general.modes, dataDir: s.general.dataDir ?? "", virtualKeyboard: s.general.virtualKeyboard, disclaimer: s.general.disclaimer, consent: s.general.consent, export: s.general.export, ...(security ? { security } : {}) },
       };
       const res = await saveAdminSettings(body);
       if (res) { setS(res); original.current = JSON.stringify(res); }
       await saveStoreSettings({ storeName });
+      origStore.current = storeName;
       setPin({ value: "", clear: false });
       refresh();
       flash();
@@ -113,7 +115,7 @@ export default function SettingsPage() {
     finally { setBusy(false); }
   }
 
-  function discard() { setS(JSON.parse(original.current)); setPin({ value: "", clear: false }); setError(null); }
+  function discard() { setStoreName(origStore.current); setS(JSON.parse(original.current)); setPin({ value: "", clear: false }); setError(null); }
 
   return (
     <div className="pb-24">

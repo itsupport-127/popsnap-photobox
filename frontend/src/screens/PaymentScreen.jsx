@@ -4,7 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import appConfig from "../config/appConfig";
 import useCountdown from "../hooks/useCountdown";
 import { createQrisPayment, checkPaymentStatus, validateVoucher } from "../services/paymentService";
-import { getPublicSettings, API_BASE } from "../services/settingsService";
+import { getPublicSettings } from "../services/settingsService";
 import OnScreenKeyboard from "../components/OnScreenKeyboard";
 import useCodeEntry, { extractCode } from "../hooks/useCodeEntry";
 import StepBadge from "../components/StepBadge";
@@ -42,12 +42,6 @@ export default function PaymentScreen({ session, dispatch }) {
 
   // Cuma 1 metode aktif -> langsung dipilih, konsumen gak perlu klik apa-apa lagi
   useEffect(() => {
-    let off = false;
-    fetch(`${API_BASE}/api/online`).then((r) => r.json()).then((d) => { if (!off && d.offline) setOffline(true); }).catch(() => {});
-    return () => { off = true; };
-  }, []);
-
-  useEffect(() => {
     if (!methods || methods.length !== 1 || session.paymentMethod || autoPickedRef.current) return;
     autoPickedRef.current = true;
     if (methods[0] === "qris") handleSelectQris();
@@ -59,6 +53,7 @@ export default function PaymentScreen({ session, dispatch }) {
   // Layar "Waktu pembayaran habis" tidak boleh menunggu selamanya kalau tamu sudah pergi: kembali otomatis setelah 30 detik
   useEffect(() => {
     if (session.paymentStatus !== "expired") return;
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); // pembayaran sudah kedaluwarsa: hentikan pengecekan QRIS
     const t = setTimeout(goBack, 30000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,7 +110,7 @@ export default function PaymentScreen({ session, dispatch }) {
 
   // Keyboard fisik langsung mengisi kode tanpa klik kolom isian (berlaku di semua mode keyboard)
   useCodeEntry({
-    active: session.paymentMethod === "voucher",
+    active: session.paymentMethod === "voucher" && session.paymentStatus !== "expired",
     setValue: (fn) => { setVoucherInput(fn); setVoucherError(null); },
     maxLength: 12,
     onSubmit: () => handleVoucherSubmit(),

@@ -207,7 +207,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
     if (manual) {
       if (seq.phase === "await") seq.shootNow();
       else if (seq.phase === "idle") seq.start();
-    } else seq.shootNow();
+    } else if (scopeFirst && seq.phase !== "await") return; // mode "ketuk sekali": ketukan saat hitung mundur otomatis diabaikan
+    else seq.shootNow();
   };
   // Layar penuh hanya saat sesi pemotretan berjalan (hitung mundur / jepret); selebihnya di bingkai desain
   const fullscreen = seq.phase === "countdown" || seq.phase === "flash" || (seq.phase === "await" && !reviewing);
@@ -261,7 +262,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
             )}
           </div>
         )}
-        {canTap && waiting && seq.phase === "idle" && !fullscreen && (
+        {canTap && waiting && seq.phase === "idle" && !fullscreen && (!scopeFirst || manualNow) && (
           <p className="sess-hint" style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>
         )}
       </div>
@@ -327,7 +328,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
         {/* Tombol potret bulat: di bawah bingkai kamera dengan jarak, tidak menimpa */}
         {!reviewing && (
-          <button onClick={tap} disabled={!canTap || seq.phase === "countdown"} aria-label="Potret" className={`sess-capture${canTap && waiting && hint !== "off" ? ` sess-capture--${hint}` : ""}`} style={{ left: U(V(809, 485, 520)), top: U(V(980, 1580, 1040)), width: U(110), height: U(110) }}>
+          <button onClick={tap} disabled={!canTap || seq.phase === "countdown"} aria-label="Potret" className={`sess-capture${canTap && waiting && hint !== "off" && (manual || seq.phase === "await") ? ` sess-capture--${hint}` : ""}`} style={{ left: U(V(809, 485, 520)), top: U(V(980, 1580, 1040)), width: U(110), height: U(110) }}>
             <Camera aria-hidden="true" strokeWidth={2.2} color="#E02843" style={{ width: U(54), height: U(54) }} />
           </button>
         )}

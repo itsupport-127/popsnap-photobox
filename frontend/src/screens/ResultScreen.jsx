@@ -31,10 +31,10 @@ export default function ResultScreen({ session, dispatch }) {
   const P = (l, p, q = l) => (portrait ? p : shape === "square" ? q : l);
   const s = appConfig.settings ?? {};
   const sharing = s.display?.sharing ?? { hideDone: false, iconsLocation: "right", showLabels: true };
-  const timeout = appConfig.timers.downloadQr || (offline ? 30 : 0); // tanpa QR harus ada timer, kalau tidak layar tertahan selamanya
-  // Mode "preview": akhir sesi hanya menampilkan hasil + tombol selesai + timer (tanpa QR). Timer habis = kembali ke layar awal. Mode "qr" (bawaan): QR + kode unduh.
   const [offline, setOffline] = useState(false); // internet mati: tanpa QR, foto dikirim CS lewat WhatsApp
   const previewOnly = sharing.mode === "preview" || offline;
+  const timeout = appConfig.timers.downloadQr || (previewOnly ? 30 : 0); // tanpa QR harus ada timer, kalau tidak layar tertahan selamanya
+  // Mode "preview": akhir sesi hanya menampilkan hasil + tombol selesai + timer (tanpa QR). Timer habis = kembali ke layar awal. Mode "qr" (bawaan): QR + kode unduh.
   const isPhoto = session.mode === "photo";
   const R = { live: true, gif: true, defaultView: "photo", gifStyle: "template", gifHoldMs: 1800, ...(s.result ?? {}) }; // Admin > GIF & Video > Hasil Akhir
   const picked = useRef(false); // tamu sudah memilih tab sendiri -> jangan dipindah otomatis
@@ -322,7 +322,7 @@ export default function ResultScreen({ session, dispatch }) {
             {printMsg && <p style={{ left: U(cx - 300), top: U(y + bh + 14), width: U(600), margin: 0, textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: printMsg.err ? "#ffd0d0" : "#fff", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{printMsg.t}</p>}
           </>);
         })()}
-        {sharing.thanksOn !== false && !(previewOnly && error) && !printMsg && (() => {
+        {sharing.thanksOn !== false && !(previewOnly && error) && !printMsg && !(animating && !previewOnly) && (() => {
           const both = sharing.thanksLang === "both";
           const side = shape === "landscape" && previewOnly; // layar lebar: teks di samping kartu hasil (di bawah tombol Done tidak muat)
           const sideX = cardF.x + cardF.w + 50;
@@ -335,7 +335,7 @@ export default function ResultScreen({ session, dispatch }) {
           const msgEn = offline ? sharing.offlineTextEn : sharing.thanksTextEn;
           const shadow = "0 1px 3px rgba(0,0,0,.4)";
           return (
-            <div style={{ ...(side ? { left: U(sideX), top: U(cardF.y + cardF.h / 2 - 90), width: U(CW - 40 - sideX) } : qrMode ? { left: U(qrCx - qrW / 2), top: U(qrTop), width: U(qrW) } : { left: U(CW / 2 - 440), top: U(belowY + 8 + (animating && previewOnly ? 40 : 0)), width: U(880) }), textAlign: "center", color: "#fff", textShadow: shadow, display: "flex", flexDirection: "column", gap: U(6) }}>
+            <div style={{ ...(side ? { left: U(sideX), top: U(cardF.y + cardF.h / 2 - 90), width: U(CW - 40 - sideX) } : qrMode ? { left: U(qrCx - qrW / 2), top: U(qrTop), width: U(qrW) } : { left: U(CW / 2 - 440), top: U(Math.min(belowY + 8 + (animating && previewOnly ? 40 : 0), P(1117, 1800, 1200) - (both ? 175 : 105))), width: U(880) }), textAlign: "center", color: "#fff", textShadow: shadow, display: "flex", flexDirection: "column", gap: U(6) }}>
               {sharing.thanksTitle && <p style={{ margin: 0, fontSize: U(slim ? 28 : P(34, 30)), fontWeight: 800, fontStyle: "italic", whiteSpace: slim ? "nowrap" : undefined }}>{sharing.thanksTitle}</p>}
               {msg && !slim && !(qrMode && both) && <p style={{ margin: 0, fontSize: U(P(28, 25)), fontWeight: 600 }}>{msg}</p>}
               {both && !slim && (sharing.thanksTitleEn || (!qrMode && msgEn)) && (
