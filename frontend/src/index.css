@@ -265,7 +265,14 @@ html, body, #root {
   @keyframes sess-pulse { 0%, 100% { transform: scale(1); box-shadow: var(--pop-shadow), 0 0 0 max(1px, calc(var(--u) * 2)) #000, 0 0 0 0 rgba(253, 181, 51, .75); } 50% { transform: scale(1.14); box-shadow: var(--pop-shadow), 0 0 0 max(1px, calc(var(--u) * 2)) #000, 0 0 0 calc(var(--u) * 22) rgba(253, 181, 51, 0); } }
   @keyframes sess-bounce { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(calc(var(--u) * -26)); } 45% { transform: translateY(0); } 60% { transform: translateY(calc(var(--u) * -10)); } 75% { transform: translateY(0); } }
   @keyframes sess-wiggle { 0%, 55%, 100% { transform: rotate(0); } 62% { transform: rotate(-14deg) scale(1.06); } 70% { transform: rotate(12deg) scale(1.06); } 78% { transform: rotate(-9deg); } 86% { transform: rotate(6deg); } 93% { transform: rotate(-3deg); } }
-  @media (prefers-reduced-motion: reduce) { .sess-capture--pulse, .sess-capture--bounce, .sess-capture--wiggle { animation: none; } }
+  /* Teks petunjuk ikut berdenyut (sama dengan tombolnya). Sengaja TIDAK dimatikan oleh "reduce motion": PC booth sering memakai Windows
+     dengan animasi dimatikan, dan penanda ini justru satu-satunya petunjuk bagi tamu. Matikan lewat Pengaturan > Capture Button Hint. */
+  .sess-hint--pulse { animation: sess-hint-pulse 1.1s ease-in-out infinite; }
+  .sess-hint--bounce { animation: sess-hint-bounce 1s ease-in-out infinite; }
+  .sess-hint--wiggle { animation: sess-hint-wiggle 1.6s ease-in-out infinite; }
+  @keyframes sess-hint-pulse { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.08); opacity: 1; } }
+  @keyframes sess-hint-bounce { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(calc(var(--u) * -14)); } 45% { transform: translateY(0); } 60% { transform: translateY(calc(var(--u) * -6)); } 75% { transform: translateY(0); } }
+  @keyframes sess-hint-wiggle { 0%, 55%, 100% { transform: rotate(0); } 62% { transform: rotate(-2deg); } 70% { transform: rotate(2deg); } 78% { transform: rotate(-1.5deg); } 86% { transform: rotate(1deg); } }
   .sess-capture span { display: block; border-radius: 50%; background: #E02843; border: 1px solid #000; }
   .sess-capture:active:not(:disabled) { transform: scale(.92); }
   .sess-capture:disabled { opacity: .35; }

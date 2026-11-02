@@ -43,6 +43,7 @@ export default function ResultScreen({ session, dispatch }) {
   const [finalImage, setFinalImage] = useState(null);
   const [gif, setGif] = useState(null);       // GIF foto-foto muncul satu per satu di dalam template { previewUrl, url }
   const [live, setLive] = useState(null);     // video klip momen di tiap slot template { previewUrl, kind: "video" | "img" }
+  const [gifBusy, setGifBusy] = useState(false);
   const [view, setView] = useState("photo");  // photo | live | gif
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
@@ -135,6 +136,7 @@ export default function ResultScreen({ session, dispatch }) {
         // GIF: foto-foto muncul satu per satu mengisi template (aktif untuk mode foto bila "Buat GIF" / template animasi menyala)
         const wantGif = R.gif && chosenPhotos.length >= 2; // GIF = fitur sendiri (Hasil Akhir)
         const makeGif = async () => {
+          setGifBusy(true);
           try {
             const style = R.gifStyle;
             const gifW = s.gif?.width ?? 480, delay = s.gif?.frameDelayMs ?? 600;
@@ -146,6 +148,7 @@ export default function ResultScreen({ session, dispatch }) {
             if (!cancelled) setGif({ previewUrl: URL.createObjectURL(main), url: r.downloadUrl });
             if (style === "both" && !cancelled) { const pb = await plain(); await uploadLive(pb, ids, "gifplain").catch((e) => console.warn("[result] GIF polos gagal diunggah:", e.message)); }
           } catch (err) { console.warn("[result] GIF gagal dibuat (foto tetap tersedia):", err.message); }
+          finally { if (!cancelled) setGifBusy(false); }
         };
         if (animated && wantLive) {
           // Urutan: LIVE dulu (yang paling ditunggu) -> GIF -> klip mentah. Preview muncul begitu siap; unggahan jalan di latar.
@@ -183,7 +186,10 @@ export default function ResultScreen({ session, dispatch }) {
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
   const ICONS = { photo: Camera, live: Video, gif: Images };
-  const views = [["photo", "Foto"], ...(live ? [["live", "Live"]] : []), ...(gif ? [["gif", "GIF"]] : [])];
+  // Live / GIF yang masih dibuat tampil sebagai tombol redup (menyusul) supaya tamu tahu keduanya akan ada, bukan "kadang tidak ada"
+  const livePending = !live && animating && R.live;
+  const gifPending = !gif && (animating || gifBusy) && R.gif && session.photosForTemplate.filter((i) => i != null).length >= 2;
+  const views = [["photo", "Foto"], ...(live ? [["live", "Live"]] : livePending ? [["live", "Live", true]] : []), ...(gif ? [["gif", "GIF"]] : gifPending ? [["gif", "GIF", true]] : [])];
   const activeView = views.some(([id]) => id === view) ? view : "photo";
   // Tampilan awal pilihan admin: pindah otomatis begitu tersedia, kecuali tamu sudah memilih sendiri
   useEffect(() => { if (!picked.current && (R.defaultView === "live" ? live : R.defaultView === "gif" ? gif : null)) setView(R.defaultView); // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,9 +299,9 @@ export default function ResultScreen({ session, dispatch }) {
           return (
             <div style={{ left: U(tabX), top: U(cardF.y + cardF.h + 24), width: U(w), height: U(64), borderRadius: U(32), background: "#DBDBDB", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, height: "100%", width: `${seg}%`, left: `${idx * seg}%`, borderRadius: U(32), background: "#E02843", transition: "left .2s ease" }} />
-              {views.map(([id, label], i) => (
-                <button key={id} type="button" onClick={() => { picked.current = true; setView(id); }}
-                  style={{ position: "absolute", top: 0, height: "100%", left: `${i * seg}%`, width: `${seg}%`, background: "transparent", border: 0, padding: 0, color: "#fff", fontStyle: "italic", fontWeight: 800, fontSize: U(30), display: "flex", alignItems: "center", justifyContent: "center", gap: U(8) }}>{React.createElement(ICONS[id], { "aria-hidden": true, strokeWidth: 2.2, style: { width: U(30), height: U(30) } })}{label}</button>
+              {views.map(([id, label, pending], i) => (
+                <button key={id} type="button" disabled={!!pending} onClick={() => { picked.current = true; setView(id); }}
+                  style={{ opacity: pending ? 0.45 : 1, position: "absolute", top: 0, height: "100%", left: `${i * seg}%`, width: `${seg}%`, background: "transparent", border: 0, padding: 0, color: "#fff", fontStyle: "italic", fontWeight: 800, fontSize: U(30), display: "flex", alignItems: "center", justifyContent: "center", gap: U(8) }}>{React.createElement(ICONS[id], { "aria-hidden": true, strokeWidth: 2.2, style: { width: U(30), height: U(30) } })}{label}</button>
               ))}
             </div>
           );

@@ -18,7 +18,7 @@ const unitOf = (u) => ({ printer: u.name || "", scale: u.scale, x: u.x, y: u.y }
 export async function printTestPage(cfg, which = "main") {
   const p = el();
   if (!p) return { ok: false, error: "Cetak tes hanya di aplikasi desktop POPSNAP (.exe)." };
-  return p.test(unitOf(cfg[which]));
+  return p.test({ ...unitOf(cfg[which]), paper: cfg.paper || "auto" });
 }
 
 // Printer berikutnya untuk cetak bergantian (printer utama & kedua)
@@ -44,7 +44,7 @@ export async function printFinal({ dataUrl, sessionId, copies = 1, template }) {
   const dup = cfg.strip2x6 && (template?.canvasWidth ?? 0) > 0 && (template.canvasHeight / template.canvasWidth) >= 2.5;
   const p = el();
   let r;
-  if (p) r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, autorotate: cfg.autorotate, dup });
+  if (p) r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, paper: cfg.paper || "auto", autorotate: cfg.autorotate, dup });
   else r = browserPrint(dataUrl);
   if (r.ok) {
     fetch(`${API_BASE}/api/print/record`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, copies, printer: unit.name }) }).catch(() => {});

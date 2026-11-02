@@ -10,7 +10,8 @@ let waiters = [];
 
 export const putClip = (index, clip) => { clips.set(index, clip); };
 export const getClip = (index) => clips.get(index) ?? null;
-export const hasClips = () => clips.size > 0;
+// Klip tanpa frame (kamera sempat macet saat jepret) tidak dihitung: kalau semuanya kosong, Live dilewati dan GIF tetap dibuat
+export const hasClips = () => [...clips.values()].some((c) => (c.frames?.length ?? 0) >= 2);
 export const clearClips = () => { clips.clear(); };
 export const beginPending = () => { pending++; };
 export const endPending = () => {

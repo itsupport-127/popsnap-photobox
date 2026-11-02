@@ -244,7 +244,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         {camera.error && <p className="absolute inset-0 flex items-center justify-center text-center px-6 font-bold" style={{ color: "#FFD9DE", fontSize: U(30) }}>{camera.error}</p>}
 
         {seq.phase === "countdown" && <CountdownOverlay count={seq.count} label={`Foto ${Math.min(nextSlot + 1, totalShots)} dari ${totalShots}`} />}
-        {seq.phase === "await" && <p className="sess-hint sess-hint--big">Ketuk layar untuk ambil foto</p>}
+        {seq.phase === "await" && <p className={`sess-hint sess-hint--big${hint !== "off" ? ` sess-hint--${hint}` : ""}`}>Ketuk layar untuk ambil foto</p>}
         {seq.phase === "flash" && (
           <div className="sess-flash absolute inset-0 flex items-center justify-center">
             {cap.sayCheeseImage ? <img src={cap.sayCheeseImage} alt="" className="max-h-full max-w-full object-contain" /> : <Camera aria-hidden="true" strokeWidth={1.6} color="#111" style={{ width: "min(22vw, 34vh)", height: "min(22vw, 34vh)" }} />}
@@ -263,7 +263,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           </div>
         )}
         {canTap && waiting && seq.phase === "idle" && !fullscreen && (!scopeFirst || manualNow) && (
-          <p className="sess-hint" style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>
+          <p className={`sess-hint${hint !== "off" ? ` sess-hint--${hint}` : ""}`} style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>
         )}
       </div>
 

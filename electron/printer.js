@@ -43,7 +43,10 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 </style></head><body><div id="w">${body}</div>${pre}<script>${script}</script></body></html>`;
 }
 
-async function printHtml(html, { deviceName, copies = 1, landscape = false, files = {}, probe }) {
+// Ukuran kertas (mikron) -> dikirim ke printer. "auto" = ikuti bawaan printer (sering berbeda dari yang dipilih di Printing Preferences).
+const PAPER = { "4x6": [101600, 152400], "5x7": [127000, 177800], "6x8": [152400, 203200], a5: [148000, 210000], a4: [210000, 297000] };
+
+async function printHtml(html, { deviceName, copies = 1, landscape = false, files = {}, probe, paper }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "popsnap-print-"));
   const w = new BrowserWindow({ show: false, width: 1200, height: 1800, webPreferences: { sandbox: true, javascript: true, offscreen: false } });
   try {
@@ -53,7 +56,7 @@ async function printHtml(html, { deviceName, copies = 1, landscape = false, file
     let land = landscape;
     if (probe) { const r = await w.webContents.executeJavaScript(probe); if (r && typeof r.landscape === "boolean") land = r.landscape; }
     return await new Promise((resolve) => {
-      w.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, copies: Math.max(1, Math.min(9, copies | 0 || 1)), landscape: land, margins: { marginType: "none" } },
+      w.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, copies: Math.max(1, Math.min(9, copies | 0 || 1)), landscape: land, margins: { marginType: "none" }, ...(PAPER[paper] ? { pageSize: { width: PAPER[paper][0], height: PAPER[paper][1] } } : {}) },
         (ok, why) => resolve(ok ? { ok: true } : { ok: false, error: why === "cancelled" ? "Pencetakan dibatalkan." : `Printer menolak: ${why || "tidak diketahui"}` }));
     });
   } catch (e) { return { ok: false, error: e.message }; }
@@ -92,7 +95,7 @@ async function print(o) {
   // tunggu skrip selesai (window.__info terisi) lalu tentukan orientasi kertas dari bentuk gambar
   const rot = !!o.autorotate && !o.dup; // strip 2x6 dobel selalu tegak
   const probe = `new Promise((res) => { const t = setInterval(() => { if (window.__info) { clearInterval(t); res({ landscape: ${rot} && window.__info.w > window.__info.h }); } }, 50); setTimeout(() => { clearInterval(t); res({}); }, 20000); })`;
-  return printHtml(html, { deviceName: o.printer, copies: o.copies, files: { "d.js": dataJs }, probe });
+  return printHtml(html, { deviceName: o.printer, copies: o.copies, files: { "d.js": dataJs }, probe, paper: o.paper });
 }
 
 async function testPage(o) {
@@ -103,7 +106,7 @@ async function testPage(o) {
     <div style="position:absolute;left:8px;bottom:6px">KIRI-BAWAH</div><div style="position:absolute;right:8px;bottom:6px">KANAN-BAWAH</div>
     <div style="position:absolute;left:0;right:0;top:44%;text-align:center;font-size:22px;font-weight:700">POPSNAP — TES CETAK</div>
     <div style="position:absolute;left:0;right:0;top:52%;text-align:center">${lab}</div></div>`;
-  return printHtml(pageHtml({ body, scale: o.scale, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1 });
+  return printHtml(pageHtml({ body, scale: o.scale, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1, paper: o.paper });
 }
 
 module.exports = { list, addShare, print, testPage };

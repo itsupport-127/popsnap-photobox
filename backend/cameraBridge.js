@@ -188,7 +188,7 @@ function mount(app, { settingsStore }) {
   const MIN_GAP_MS = 1000 / 30;
   const STALL_MS = 3500;
   let clients = 0, lastPutAt = 0, capturing = 0, captureEndedAt = 0, lastRecover = 0, recoveries = 0;
-  const streamHealth = () => ({ clients, frameAgeMs: lastPutAt ? Date.now() - lastPutAt : null, recoveries, capturing: capturing > 0, stalled: clients > 0 && capturing === 0 && !!lastPutAt && Date.now() - lastPutAt > 6000 });
+  const streamHealth = () => ({ clients, frameAgeMs: lastPutAt ? Date.now() - lastPutAt : null, recoveries, capturing: capturing > 0, stalled: clients > 0 && capturing === 0 && (!lastPutAt || Date.now() - lastPutAt > 6000) });
   const TAIL = Buffer.from("\r\n");
   app.get("/api/camera/dslr/stream", async (req, res) => {
     const c = cfg();
@@ -243,8 +243,14 @@ function mount(app, { settingsStore }) {
   });
 
   app.post("/api/camera/dslr/liveview/stop", async (req, res) => {
-    lvOn = false;
     const c0 = cfg();
+    if (c0.driver === "digicam") {
+      // Sama seperti jalur SDK: "stop" dari Pengaturan Kamera bisa tiba SESUDAH layar booth membuka live view -> layar hitam.
+      // Tunda; matikan hanya bila tak ada aliran yang dipakai dan tidak sedang jepret.
+      setTimeout(() => { if (clients === 0 && capturing === 0) { lvOn = false; dcc("/?CMD=LiveViewWnd_Hide").catch(() => {}); } }, 1500);
+      return res.json({ ok: true });
+    }
+    lvOn = false;
     if (c0.driver !== "digicam") {
       // Keluar dari Setelan Kamera / layar sesi mengirim "stop" yang bisa tiba SESUDAH layar lain membuka live view -> kamera
       // dimatikan dan layar hitam. Tunda sebentar; jalankan hanya bila tak ada aliran lain yang sedang dipakai dan tidak sedang jepret.
