@@ -7,12 +7,11 @@ import { Icon } from "./editorKit";
 import SettingsGeneral from "./settings/SettingsGeneral";
 import SettingsCamera from "./settings/SettingsCamera";
 import SettingsDisplay from "./settings/SettingsDisplay";
-import SettingsFilters from "./settings/SettingsFilters";
 import SettingsMedia from "./settings/SettingsMedia";
 import SettingsPrinting from "./settings/SettingsPrinting";
 
 // Pengelompokan menurut urutan yang dilihat tamu. Tiap item = kartu pengaturan dari satu komponen (nilai yang tersimpan tidak berubah).
-const COMP = { general: SettingsGeneral, camera: SettingsCamera, display: SettingsDisplay, filters: SettingsFilters, media: SettingsMedia, printing: SettingsPrinting };
+const COMP = { general: SettingsGeneral, camera: SettingsCamera, display: SettingsDisplay, media: SettingsMedia, printing: SettingsPrinting };
 const GROUPS = [
   { id: "booth", label: "Booth & Event", icon: "gear", desc: "Nama studio, event, mode booth, PIN, keyboard, folder data, dan tombol kunci.",
     items: [["store"], ["general", ["EVENT", "BOOTH MODE", "KEYBOARD & PIN", "DIRECTORIES"]], ["display", ["TOMBOL KUNCI (GEMBOK → PIN)"]]] },
@@ -24,8 +23,8 @@ const GROUPS = [
     items: [["general", ["ATURAN SESI FOTO"]], ["display", ["CAPTURE SCREEN"]]] },
   { id: "kamera", label: "Kamera & Live View", icon: "eye", desc: "Sumber kamera, DSLR, live view, dan profil warna.",
     items: [["camera", ["CAMERA", "KAMERA DSLR / MIRRORLESS", "LIVE VIEW"]]] },
-  { id: "hasil", label: "Hasil Akhir", icon: "star", desc: "Layar akhir (QR, ucapan, offline), tombol hasil, dan filter foto.",
-    items: [["display", ["SHARING SCREEN"]], ["media", ["HASIL AKHIR (FOTO / LIVE / GIF)"]], ["filters", ["Filter foto"]]] },
+  { id: "hasil", label: "Hasil Akhir", icon: "star", desc: "Layar akhir (QR, ucapan, offline) dan tombol hasil. Filter foto ada di menu Filter.",
+    items: [["display", ["SHARING SCREEN"]], ["media", ["HASIL AKHIR (FOTO / LIVE / GIF)"]]] },
   { id: "media", label: "GIF, Live & Video", icon: "history", desc: "Pengaturan GIF, Live (video momen), boomerang, dan video.",
     items: [["media", ["GIF", "LIVE (VIDEO MOMEN)", "BOOMERANG", "VIDEO"]]] },
   { id: "cetak", label: "Cetak", icon: "printer", desc: "Printer, ukuran kertas, dan perilaku cetak.",

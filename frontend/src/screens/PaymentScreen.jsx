@@ -56,6 +56,13 @@ export default function PaymentScreen({ session, dispatch }) {
 
   // Mode foto: kembali ke pilih template (kecuali template sudah ditentukan admin). Mode lain: batalkan sesi.
   const goBack = () => dispatch({ type: session.mode === "photo" && !session.autoTemplate ? "BACK_TO_TEMPLATE_SELECT" : "CANCEL_SESSION" });
+  // Layar "Waktu pembayaran habis" tidak boleh menunggu selamanya kalau tamu sudah pergi: kembali otomatis setelah 30 detik
+  useEffect(() => {
+    if (session.paymentStatus !== "expired") return;
+    const t = setTimeout(goBack, 30000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.paymentStatus]);
   const kbMode = appConfig.settings?.general?.virtualKeyboard ?? "off"; // off | builtin | windows
   const useKeyboard = kbMode === "builtin";
   const voucherInputRef = useRef(null);
