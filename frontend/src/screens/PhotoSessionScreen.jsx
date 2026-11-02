@@ -83,7 +83,11 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   // Mode ketuk: "all" = tiap foto diketuk; "first" = ketuk sekali di foto pertama (atau saat retake), sisanya otomatis
   const scopeFirst = cap.manualTrigger !== false && cap.manualScope === "first";
   const manualNow = cap.manualTrigger !== false && (!scopeFirst || session.shots.length === 0 || session.retakeAt != null);
+  // Nama kelas ditulis utuh (bukan disusun `sess-capture--${hint}`): Tailwind v4 membuang kelas @layer components yang tidak ditemukan
+  // utuh di kode sumber, sehingga animasi tidak pernah ikut terbuat.
   const hint = cap.captureHint ?? "pulse";
+  const BTN_HINT = { pulse: "sess-capture--pulse", bounce: "sess-capture--bounce", wiggle: "sess-capture--wiggle" }[hint] ?? "";
+  const TXT_HINT = { pulse: "sess-hint--pulse", bounce: "sess-hint--bounce", wiggle: "sess-hint--wiggle" }[hint] ?? "";
   const seq = useShotSequence({
     active: camera.ready && !paused,
     needed,
@@ -244,7 +248,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         {camera.error && <p className="absolute inset-0 flex items-center justify-center text-center px-6 font-bold" style={{ color: "#FFD9DE", fontSize: U(30) }}>{camera.error}</p>}
 
         {seq.phase === "countdown" && <CountdownOverlay count={seq.count} label={`Foto ${Math.min(nextSlot + 1, totalShots)} dari ${totalShots}`} />}
-        {seq.phase === "await" && <p className={`sess-hint sess-hint--big${hint !== "off" ? ` sess-hint--${hint}` : ""}`}>Ketuk layar untuk ambil foto</p>}
+        {seq.phase === "await" && <p className={`sess-hint sess-hint--big${TXT_HINT ? ` ${TXT_HINT}` : ""}`}>Ketuk layar untuk ambil foto</p>}
         {seq.phase === "flash" && (
           <div className="sess-flash absolute inset-0 flex items-center justify-center">
             {cap.sayCheeseImage ? <img src={cap.sayCheeseImage} alt="" className="max-h-full max-w-full object-contain" /> : <Camera aria-hidden="true" strokeWidth={1.6} color="#111" style={{ width: "min(22vw, 34vh)", height: "min(22vw, 34vh)" }} />}
@@ -263,7 +267,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           </div>
         )}
         {canTap && waiting && seq.phase === "idle" && !fullscreen && (!scopeFirst || manualNow) && (
-          <p className={`sess-hint${hint !== "off" ? ` sess-hint--${hint}` : ""}`} style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>
+          <p className={`sess-hint${TXT_HINT ? ` ${TXT_HINT}` : ""}`} style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>
         )}
       </div>
 
@@ -328,7 +332,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
         {/* Tombol potret bulat: di bawah bingkai kamera dengan jarak, tidak menimpa */}
         {!reviewing && (
-          <button onClick={tap} disabled={!canTap || seq.phase === "countdown"} aria-label="Potret" className={`sess-capture${canTap && waiting && hint !== "off" && (manual || seq.phase === "await") ? ` sess-capture--${hint}` : ""}`} style={{ left: U(V(809, 485, 520)), top: U(V(980, 1580, 1040)), width: U(110), height: U(110) }}>
+          <button onClick={tap} disabled={!canTap || seq.phase === "countdown"} aria-label="Potret" className={`sess-capture${canTap && waiting && BTN_HINT && (manual || seq.phase === "await") ? ` ${BTN_HINT}` : ""}`} style={{ left: U(V(809, 485, 520)), top: U(V(980, 1580, 1040)), width: U(110), height: U(110) }}>
             <Camera aria-hidden="true" strokeWidth={2.2} color="#E02843" style={{ width: U(54), height: U(54) }} />
           </button>
         )}
