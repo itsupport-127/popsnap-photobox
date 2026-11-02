@@ -1,3 +1,0 @@
-/backend/.env
-/backend/.env.*
-!native/nikon/wrapper/**

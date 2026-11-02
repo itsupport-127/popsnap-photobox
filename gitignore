@@ -12,6 +12,7 @@ electron/dist/
 electron/node_modules/
 out/
 
+
 # ===== Data & rahasia (JANGAN di-upload) =====
 .env
 .env.*
