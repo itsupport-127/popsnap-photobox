@@ -1,7 +1,7 @@
 import React from "react";
 import { NumInput } from "../editorKit";
 import { Card, Notice } from "../ui";
-import { Check, Row, Select } from "./controls";
+import { Check, Range, Row, Select } from "./controls";
 
 const N = ({ value, min, onCommit }) => <div className="w-28"><NumInput value={value} min={min} onCommit={(v) => onCommit(Math.round(v))} /></div>;
 
@@ -41,6 +41,9 @@ export default function SettingsMedia({ s, set, only }) {
         <Row label="Klip mentah per foto"><Check checked={a.rawClips} onChange={(x) => set(["animated", "rawClips"], x)} label="Sertakan klip tiap foto" /></Row>
         <Row label="Format klip mentah"><Select value={a.rawFormat} onChange={(x) => set(["animated", "rawFormat"], x)} options={[["mp4", "MP4 (GIF jika tidak didukung)"], ["gif", "GIF"]]} /></Row>
         <Row label="Lebar klip mentah (px)" hint="240–1280"><N value={a.clipWidth} min={240} onCommit={(x) => set(["animated", "clipWidth"], x)} /></Row>
+        <Row label="Kecerahan Live (%)" hint="50–150. Tambahan khusus Live, di atas pengaturan Kamera. 100 = sama dengan layar jepret."><Range value={a.liveBrightness ?? 100} min={50} max={150} unit="%" onChange={(v) => set(["animated", "liveBrightness"], v)} /></Row>
+        <Row label="Kontras Live (%)" hint="50–150. 100 = sama dengan layar jepret."><Range value={a.liveContrast ?? 100} min={50} max={150} unit="%" onChange={(v) => set(["animated", "liveContrast"], v)} /></Row>
+        <Row label="Ketajaman Live" hint="0–100. 0 = mati. Naikkan pelan-pelan (10–30) kalau Live terlihat lembut dibanding foto."><Range value={a.liveSharpness ?? 0} min={0} max={100} onChange={(v) => set(["animated", "liveSharpness"], v)} /></Row>
         <Notice tone="info">Klip mengikuti pilihan Mirror & Filter tamu. Untuk kamera DSLR, klip diambil dari live view yang tampil di layar.</Notice>
       </Card>)}
       {vis("BOOMERANG") && (

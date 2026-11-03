@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { effectiveRotation } from "../utils/cameraRotation";
 import appConfig from "../config/appConfig";
+import { lookFilter } from "../utils/liveLook";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
@@ -166,7 +167,7 @@ export default function useCamera(orientation = "portrait", opts = {}) {
    * Kanvas dipakai ulang per `key` (jangan simpan hasilnya: isinya ditimpa pemanggilan berikutnya dengan key yang sama; salin / baca segera).
    * key "read" = akan dibaca piksel-nya (CPU), key lain = hanya digambar / di-encode (GPU, jauh lebih ringan, filter kecerahan ikut GPU).
    */
-  function drawFrame(maxWidth, raw = false, key = "read") {
+  function drawFrame(maxWidth, raw = false, key = "read", extra = null) {
     const img = useDslr ? imgRef.current : null;
     // DSLR: sumber = <img> aliran MJPEG (sudah tampil di layar); webcam: <video>
     const video = useDslr ? (img && img.naturalWidth ? { videoWidth: img.naturalWidth, videoHeight: img.naturalHeight, el: img } : null) : (videoRef.current && videoRef.current.videoWidth ? { videoWidth: videoRef.current.videoWidth, videoHeight: videoRef.current.videoHeight, el: videoRef.current } : null);
@@ -190,7 +191,8 @@ export default function useCamera(orientation = "portrait", opts = {}) {
     ctx.translate(w / 2, h / 2);
     ctx.rotate((rotation * Math.PI) / 180);
     const dw = video.videoWidth * k, dh = video.videoHeight * k;
-    if (!raw && gainRef.current !== 1) ctx.filter = `brightness(${gainRef.current})`;
+    // Tampilan sama dengan live view di layar (gamma kecerahan + kontras / saturasi / hangat) -> foto webcam, klip Live, dan GIF cocok dengan yang dilihat tamu
+    if (!raw) { const f = lookFilter(gainRef.current, cam.liveView, extra); if (f) ctx.filter = f; }
     try { ctx.drawImage(video.el, -dw / 2, -dh / 2, dw, dh); } catch { return null; } // frame belum siap
     return canvas;
   }
@@ -207,8 +209,8 @@ export default function useCamera(orientation = "portrait", opts = {}) {
   }
 
   /** Frame kamera saat ini (sudah dirotasi) sebagai canvas lebar `maxWidth` — dipakai perekam klip Template Animasi. */
-  function grabCanvas(maxWidth, raw = false, key = "read") {
-    return drawFrame(maxWidth, raw, key);
+  function grabCanvas(maxWidth, raw = false, key = "read", extra = null) {
+    return drawFrame(maxWidth, raw, key, extra);
   }
 
   /** Frame kecil (ImageData) untuk GIF / boomerang. */

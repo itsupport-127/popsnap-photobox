@@ -62,7 +62,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const recorder = useClipRecorder({
     enabled: recordClips && camera.ready,
     grab: camera.grabCanvas,
-    cfg: { secondsBefore: animCfg.secondsBefore ?? 1.5, secondsAfter: animCfg.secondsAfter ?? 2, fps: animCfg.fps ?? 10, clipWidth: animCfg.clipWidth ?? 640 },
+    cfg: { secondsBefore: animCfg.secondsBefore ?? 1.5, secondsAfter: animCfg.secondsAfter ?? 2, fps: animCfg.fps ?? 10, clipWidth: animCfg.clipWidth ?? 640, look: { brightness: animCfg.liveBrightness ?? 100, contrast: animCfg.liveContrast ?? 100, sharpness: animCfg.liveSharpness ?? 0 } },
   });
   const shotIndexNow = useRef(0);
   shotIndexNow.current = session.retakeAt ?? session.shots.length;

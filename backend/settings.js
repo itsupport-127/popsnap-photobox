@@ -143,6 +143,9 @@ const DEFAULTS = {
     rawClips: true,     // simpan klip mentah per foto
     rawFormat: "mp4",   // mp4 | gif (klip mentah)
     clipWidth: 640,     // lebar klip mentah (px)
+    liveBrightness: 100, // penyesuaian KHUSUS Live (di atas pengaturan Kamera): kecerahan 50-150 %
+    liveContrast: 100,   // kontras 50-150 %
+    liveSharpness: 0,    // ketajaman 0-100
     downloadPage: true, // QR membuka halaman unduh berisi semua file (foto, GIF, video, klip), bukan 1 file
   },
   boomerang: { seconds: 3, fps: 10, width: 480 },
@@ -441,6 +444,9 @@ function update(patch) {
       rawClips: bool(a.rawClips, ca.rawClips),
       rawFormat: pick(a.rawFormat, ["mp4", "gif"], ca.rawFormat),
       clipWidth: num(a.clipWidth, 240, 1280, ca.clipWidth),
+      liveBrightness: num(a.liveBrightness, 50, 150, ca.liveBrightness ?? 100),
+      liveContrast: num(a.liveContrast, 50, 150, ca.liveContrast ?? 100),
+      liveSharpness: num(a.liveSharpness, 0, 100, ca.liveSharpness ?? 0),
       downloadPage: bool(a.downloadPage, ca.downloadPage),
     };
     if (next.animated.secondsBefore + next.animated.secondsAfter < 1) next.animated.secondsAfter = 1 - next.animated.secondsBefore; // klip minimal 1 detik

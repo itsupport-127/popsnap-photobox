@@ -43,7 +43,7 @@ export default function useClipRecorder({ enabled, grab, cfg }) {
       try {
         const t0 = performance.now();
         // key "clip": kanvas GPU yang dipakai ulang (bukan kanvas CPU baru tiap frame) -> live view di layar tetap mulus
-        const c = grabRef.current?.(clipWidth, false, "clip");
+        const c = grabRef.current?.(clipWidth, false, "clip", cfgRef.current.look);
         if (!c) return;
         const t = performance.now();
         const blob = await toBlob(c, 0.78);
