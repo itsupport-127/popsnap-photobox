@@ -26,6 +26,8 @@ const Icon = ({ path, size = 40 }) => (
  * - Klik Start otomatis masuk layar penuh (seperti F11). Ikon gembok -> PIN -> keluar layar penuh & buka menu admin.
  * - Tombol keyboard: Spasi / S / PageUp / PageDown / F13 = mulai (kalau diaktifkan).
  */
+import useStorage from "../hooks/useStorage";
+
 export default function WelcomeScreen({ dispatch, settings, camera, singleTemplate }) {
   const kiosk = useKiosk();
   const d = settings?.display;
@@ -33,7 +35,10 @@ export default function WelcomeScreen({ dispatch, settings, camera, singleTempla
   const modes = settings?.general?.modes;
   const title = settings?.event?.name || "POPSNAP";
   const subtitle = settings?.event?.subtitle ?? "";
-  const ready = camera.status === "ready";
+  const storage = useStorage();
+  const diskFull = storage.level === "critical"; // ruang disk habis: tidak menerima sesi baru
+  const camReady = camera.status === "ready";
+  const ready = camReady && !diskFull; // tombol mulai aktif
   const enabled = MODES.filter((m) => m.id === "photo" || modes?.[m.id]?.enabled);
   const showLabels = modes?.showLabels !== false;
   const liveBg = settings?.camera?.liveView?.displayOnStart && settings?.camera?.mode !== "dslr";
@@ -104,6 +109,10 @@ export default function WelcomeScreen({ dispatch, settings, camera, singleTempla
           <span dangerouslySetInnerHTML={{ __html: START_BUTTON_SVG }} style={{ position: "absolute", left: U(P(-6, -8, -8)), top: U(P(-4, -6, -6)), width: U(P(378, 540, 540)), height: U(P(111, 158, 158)), pointerEvents: "none", display: "block", willChange: "transform" }} />
         </button>
 
+        {diskFull && (
+          <p className="text-center font-bold italic text-white drop-shadow" style={{ left: U(60), width: U(P(1728, 1080, 1200) - 120), top: U(P(extraModes.length ? 1020 : 925, extraModes.length ? 1400 : 1320, 895)), fontSize: U(P(30, 40, 36)), margin: 0 }}>Booth sedang tidak dapat digunakan. Silakan hubungi CS.</p>
+        )}
+
         {extraModes.length > 0 && (
           <div className="flex items-center justify-center" style={{ left: 0, width: "100%", top: U(P(930, 1260, 930)), gap: U(P(18, 24, 24)) }}>
             {extraModes.map((m) => (
@@ -115,7 +124,7 @@ export default function WelcomeScreen({ dispatch, settings, camera, singleTempla
           </div>
         )}
 
-        {!ready && camera.status !== "checking" && (
+        {!camReady && camera.status !== "checking" && (
           <div className="flex flex-col items-center" style={{ left: 0, width: "100%", top: U(P(925, 1260, 930)), gap: U(P(10, 16, 14)) }}>
             <p className="bg-black/40 rounded-xl text-center" style={{ fontSize: U(P(22, 32, 28)), padding: `${U(8)} ${U(20)}`, maxWidth: U(P(700, 900, 800)) }}>{camera.detail}</p>
             <button onClick={camera.retry} className="strip-btn strip-btn--next" style={{ height: U(P(52, 76, 64)), padding: `0 ${U(P(28, 40, 34))}`, fontSize: U(P(22, 32, 28)) }}>Coba lagi</button>

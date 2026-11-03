@@ -1,3 +1,5 @@
+import { buildExport, applyImport, downloadJson } from "./settingsTransfer";
+import useUnsavedGuard from "./useUnsavedGuard";
 import React, { useEffect, useRef, useState } from "react";
 import { getAdminSettings, getStoreSettings, saveAdminSettings, saveStoreSettings } from "../services/settingsService";
 import { useOverview } from "./AdminApp";
@@ -6,6 +8,7 @@ import { Row } from "./settings/controls";
 import { Icon } from "./editorKit";
 import SettingsGeneral from "./settings/SettingsGeneral";
 import SettingsCamera from "./settings/SettingsCamera";
+import StorageBanner from "./StorageBanner";
 import SettingsDisplay from "./settings/SettingsDisplay";
 import SettingsMedia from "./settings/SettingsMedia";
 import SettingsPrinting from "./settings/SettingsPrinting";
@@ -36,6 +39,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState("booth");
   const [q, setQ] = useState("");
   const bodyRef = useRef(null);
+  const importRef = useRef(null);
   const [s, setS] = useState(null);
   const original = useRef(null);
   const [storeName, setStoreName] = useState("");
@@ -83,6 +87,7 @@ export default function SettingsPage() {
     if (none) none.style.display = words.length && ![...root.querySelectorAll("[data-group]")].some((g) => g.style.display !== "none") ? "" : "none";
   });
 
+  useUnsavedGuard(!!s && (JSON.stringify(s) !== original.current || pin.value !== "" || pin.clear || storeName !== origStore.current) && !saved); // hook harus sebelum return awal
   if (!s) return <Page title="Pengaturan"><p className="text-[#6B7684] text-[13px]">Memuat...</p></Page>;
 
   const set = (path, value) => setS((prev) => {
@@ -115,13 +120,33 @@ export default function SettingsPage() {
     finally { setBusy(false); }
   }
 
+  function exportSettings() {
+    const n = (storeName || "booth").replace(/[^A-Za-z0-9_-]+/g, "-").slice(0, 30) || "booth";
+    downloadJson(buildExport(s), `popsnap-pengaturan-${n}-${new Date().toISOString().slice(0, 10)}.json`);
+  }
+  async function importSettings(e) {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const { next, changed } = applyImport(s, JSON.parse(await f.text()));
+      if (!changed) { setError("Pengaturan di berkas ini sama dengan yang sekarang. Tidak ada yang berubah."); return; }
+      setS(next); setError(null);
+      window.alert(`${changed} pengaturan dimuat dari berkas. Periksa lalu tekan Save untuk menerapkan (Cancel untuk membatalkan).`);
+    } catch (err) { setError(err.message || "Berkas tidak bisa dibaca."); }
+  }
+
   function discard() { setStoreName(origStore.current); setS(JSON.parse(original.current)); setPin({ value: "", clear: false }); setError(null); }
 
   return (
     <div className="pb-24">
       <div className="sticky top-0 z-10 bg-[#F4F7FA] border-b border-[#D5DCE4] px-6 pt-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <h1 className="text-xl text-[#181B23]">Pengaturan</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl text-[#181B23]">Pengaturan</h1>
+            <button type="button" onClick={exportSettings} className="text-[12px] text-[#4082AE] hover:underline" title="Unduh pengaturan booth ini sebagai berkas (tanpa data pembayaran, PIN, kamera & printer PC ini)">Ekspor</button>
+            <button type="button" onClick={() => importRef.current?.click()} className="text-[12px] text-[#4082AE] hover:underline" title="Muat pengaturan dari berkas ekspor PC lain (diterapkan setelah Save)">Impor</button>
+            <input ref={importRef} type="file" accept="application/json,.json" onChange={importSettings} className="hidden" aria-label="Berkas pengaturan" />
+          </div>
           <div className="relative w-full max-w-sm">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pengaturan… (mis. countdown, printer, voucher)" aria-label="Cari pengaturan"
               className="w-full bg-white border border-[#C7D0DA] text-[#181B23] rounded-full pl-4 pr-9 py-1.5 text-[13px] outline-none focus:border-[#4082AE]" />
@@ -138,6 +163,7 @@ export default function SettingsPage() {
       </div>
 
       <div ref={bodyRef} className="max-w-5xl mx-auto px-6 py-5 flex flex-col gap-4">
+        <StorageBanner />
         {error && <Notice tone="error">{error}</Notice>}
         {(q.trim() ? GROUPS : GROUPS.filter((g) => g.id === tab)).map((g) => (
           <div key={g.id} data-group data-order={g.items.flatMap(([c, cards]) => (c === "store" ? ["NAMA TOKO / STUDIO"] : cards)).join("||")} className="flex flex-col gap-4">

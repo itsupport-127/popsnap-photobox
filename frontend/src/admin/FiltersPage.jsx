@@ -1,3 +1,4 @@
+import useUnsavedGuard from "./useUnsavedGuard";
 import React, { useEffect, useRef, useState } from "react";
 import { getAdminSettings, saveAdminSettings } from "../services/settingsService";
 import { Btn, Notice, Page, useSavedFlag } from "./ui";
@@ -15,6 +16,7 @@ export default function FiltersPage() {
     getAdminSettings().then((d) => { if (d) { setS(d); original.current = JSON.stringify(d.editor ?? {}); } }).catch((e) => setError(e.message));
   }, []);
 
+  useUnsavedGuard(!!s && JSON.stringify(s.editor ?? {}) !== original.current && !saved); // hook harus sebelum return awal
   if (!s) return <Page title="Filter">{error ? <Notice tone="error">{error}</Notice> : <p className="text-[#6B7684] text-[13px]">Memuat...</p>}</Page>;
 
   const set = (path, value) => setS((prev) => {

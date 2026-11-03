@@ -103,11 +103,43 @@ async function paymentState() {
 }
 
 const app = express();
+// Endpoint khusus KIOSK (jepret & live view kamera, cek voucher, PIN, sesi foto, QRIS, catatan cetak) tidak butuh login karena
+// dipanggil layar booth di PC ini. Karena itu hanya dilayani untuk permintaan dari PC booth sendiri: perangkat lain di WiFi studio
+// tidak bisa memicu jepret, menebak voucher / PIN, atau mematikan live view. Tidak terpengaruh: tautan unduh tamu (/s, /uploads),
+// admin dari perangkat lain (sudah wajib login), integrasi kasir (API key), dan webhook pembayaran.
+// Butuh akses kiosk dari perangkat lain? Isi POPSNAP_ALLOW_LAN=1 di .env.
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const KIOSK_ONLY = ["/api/camera/", "/api/voucher/validate", "/api/kiosk/", "/api/session/", "/api/payment/qris", "/api/print/record"];
+app.use((req, res, next) => {
+  if (process.env.POPSNAP_ALLOW_LAN === "1" || !KIOSK_ONLY.some((p) => req.path.startsWith(p))) return next();
+  if (LOOPBACK.has(req.socket.remoteAddress)) return next();
+  res.status(403).json({ error: "Hanya bisa diakses dari PC booth ini." });
+});
 app.use(cors());
 app.use(express.json({ limit: "50mb" })); // dinaikkan karena sekarang kirim SEMUA foto mentah (8x) + hasil final sekaligus
 app.use("/uploads", express.static(path.join(config.dataDir, "uploads")));
 
 const upload = multer({ dest: path.join(config.dataDir, "uploads") });
+
+// ---------- RUANG DISK ----------
+// Tiap sesi menyimpan foto, klip, MP4 dan GIF; disk penuh di tengah sesi = hasil gagal tersimpan. Level: ok | low (< 5 GB) | critical (< 1 GB).
+// Booth menolak sesi BARU saat critical dan Pengaturan menampilkan peringatan. Dicek paling sering tiap 30 detik (cache).
+let diskCache = { at: 0, v: null };
+function diskInfo() {
+  if (diskCache.v && Date.now() - diskCache.at < 30000) return diskCache.v;
+  let v = { freeGB: null, totalGB: null, level: "ok", path: "" };
+  try {
+    const target = (() => { try { return outputDir(); } catch { return config.dataDir; } })();
+    const probe = fs.existsSync(target) ? target : config.dataDir;
+    const st = fs.statfsSync(probe);
+    const fake = Number(process.env.POPSNAP_FAKE_FREE_GB); // hanya untuk uji
+    const freeGB = Number.isFinite(fake) && process.env.POPSNAP_FAKE_FREE_GB ? fake : Math.round((Number(st.bavail) * Number(st.bsize)) / 1e8) / 10, totalGB = Math.round((Number(st.blocks) * Number(st.bsize)) / 1e8) / 10;
+    v = { freeGB, totalGB, level: freeGB < 1 ? "critical" : freeGB < 5 ? "low" : "ok", path: probe };
+  } catch { /* statfs tidak tersedia: anggap aman, jangan menghalangi sesi */ }
+  diskCache = { at: Date.now(), v };
+  return v;
+}
+app.get("/api/system/disk", (req, res) => { const { freeGB, totalGB, level } = diskInfo(); res.json({ freeGB, totalGB, level }); });
 
 // ---------- AUTH ----------
 
@@ -439,7 +471,6 @@ app.post("/api/system/mkdir", requirePerm("settings.manage"), (req, res) => {
 
 // Dialog pilih folder BAWAAN SISTEM OPERASI. Dialog muncul di layar PC tempat backend berjalan, jadi hanya dilayani untuk
 // permintaan dari PC itu sendiri (localhost / aplikasi desktop). Dari perangkat lain -> 403, admin otomatis memakai daftar folder dalam aplikasi.
-const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 let pickingFolder = false;
 app.post("/api/system/pick-folder", requirePerm("settings.manage"), (req, res) => {
   if (!LOOPBACK.has(req.socket.remoteAddress)) return res.status(403).json({ error: "Dialog folder bawaan hanya bisa dibuka dari PC booth itu sendiri." });
@@ -1857,6 +1888,26 @@ setInterval(() => {
     console.log(`[cleanup] Hapus ${expired.length} sesi yang lewat retensi.`);
   }
 }, 6 * 60 * 60 * 1000);
+
+// ---------- CADANGAN DATABASE HARIAN ----------
+// Salinan konsisten (VACUUM INTO) database sesi, voucher, template, dan pengaturan ke <data>/backups/popsnap-TANGGAL.db, sekali sehari,
+// simpan 14 terakhir. Cadangan inilah yang dipakai kalau database rusak (listrik mati saat menulis) atau salah hapus.
+function backupDb() {
+  try {
+    const dir = path.join(config.dataDir, "backups");
+    fs.mkdirSync(dir, { recursive: true });
+    const name = `popsnap-${new Date().toISOString().slice(0, 10)}.db`;
+    const file = path.join(dir, name);
+    if (!fs.existsSync(file)) {
+      db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+      console.log(`[backup] ${name}`);
+    }
+    const all = fs.readdirSync(dir).filter((f) => /^popsnap-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort();
+    for (const f of all.slice(0, Math.max(0, all.length - 14))) { try { fs.unlinkSync(path.join(dir, f)); } catch { /* abaikan */ } }
+  } catch (err) { console.error("[backup] gagal:", err.message); }
+}
+setTimeout(backupDb, 15000);
+setInterval(backupDb, 6 * 60 * 60 * 1000);
 
 // Pastikan folder arsip permanen ada sejak backend nyala
 try { fs.mkdirSync(outputDir(), { recursive: true }); } catch (err) { console.error("[arsip] Folder arsip tidak bisa dibuat:", err.message); }

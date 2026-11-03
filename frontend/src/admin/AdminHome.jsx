@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import { useOverview } from "./AdminApp";
 import { can } from "../services/authService";
 import PaymentModeCard from "./PaymentModeCard";
+import StorageBanner from "./StorageBanner";
 import { Icon } from "./editorKit";
 import { Page } from "./ui";
 
 const TILES = [
   { to: "/admin/template", icon: "image", title: "Edit Template", desc: "Desain template: ukuran kertas, slot foto, teks, shape.", perm: ["template.manage"] },
   { to: "/admin/stickers", icon: "sticker", title: "Stiker", desc: "Unggah stiker untuk layar Add sticker, atur kategorinya.", perm: ["template.manage"] },
+  { to: "/admin/check", icon: "wrench", title: "Cek Siap Buka", desc: "Periksa kamera, printer, internet, QRIS, dan ruang disk sebelum studio dibuka.", perm: ["settings.manage"] },
   { to: "/admin/filters", icon: "eye", title: "Filter", desc: "Filter foto yang bisa dipilih tamu: tambah, urutkan, impor.", perm: ["settings.manage"] },
   { to: "/admin/voucher", icon: "ticket", title: "Voucher Kasir", desc: "Buat kode voucher setelah pelanggan bayar di kasir.", perm: ["voucher.manage"] },
   { to: "/admin/payment", icon: "wallet", title: "Pembayaran", desc: "Mode bayar, payment gateway, integrasi aplikasi kasir.", perm: ["payment.mode", "payment.gateway"] },
@@ -43,6 +45,8 @@ export default function AdminHome({ user }) {
           <Stat label="QRIS masuk hari ini" value={rupiah(t.qrisRevenue)} />
         </div>
       )}
+
+      <StorageBanner />
 
       <PaymentModeCard canEdit={can(user, "payment.mode")} />
 
