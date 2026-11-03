@@ -7,7 +7,7 @@ const N = ({ value, min, onCommit }) => <div className="w-28"><NumInput value={v
 
 export default function SettingsMedia({ s, set, only }) {
   const vis = (t) => !only || only.includes(t); // tampilkan hanya kartu yang diminta halaman Pengaturan (pengelompokan baru)
-  const g = s.gif, b = s.boomerang, v = s.video, a = s.animated, r = s.result ?? { live: true, gif: true, defaultView: "photo", gifStyle: "template", gifHoldMs: 1800 };
+  const g = s.gif, b = s.boomerang, v = s.video, a = s.animated, r = s.result ?? { live: true, gif: true, defaultView: "photo", gifStyle: "template", gifHoldMs: 1800, loadingOn: true, loadingMinSec: 3, loadingMaxSec: 20 };
   const F = ({ value, min, step = 0.5, onCommit }) => <div className="w-28"><NumInput value={value} min={min} step={step} onCommit={onCommit} /></div>;
   return (
     <>
@@ -19,6 +19,9 @@ export default function SettingsMedia({ s, set, only }) {
         <Row label="Tampilan awal"><Select value={r.defaultView} onChange={(x) => set(["result", "defaultView"], x)} options={[["photo", "Foto"], ["live", "Live"], ["gif", "GIF"]]} /></Row>
         <Row label="Gaya GIF"><Select value={r.gifStyle} onChange={(x) => set(["result", "gifStyle"], x)} options={[["template", "Di dalam template"], ["plain", "Polos (foto saja)"], ["both", "Keduanya"]]} /></Row>
         <Row label="Tahan hasil akhir (ms)" hint="0–6000. Lama frame terakhir GIF di dalam template."><N value={r.gifHoldMs} min={0} onCommit={(x) => set(["result", "gifHoldMs"], x)} /></Row>
+        <Row label="Layar tunggu hasil" hint="Sebelum hasil tampil, tamu melihat layar animasi ringan berisi fotonya sendiri sampai Foto, Live, dan GIF siap."><Check checked={r.loadingOn !== false} onChange={(x) => set(["result", "loadingOn"], x)} label="Tampilkan layar tunggu sebelum hasil" /></Row>
+        {r.loadingOn !== false && <Row label="Tunggu minimal (detik)" hint="0–15. Supaya layar tidak berkedip kalau hasil sudah siap cepat."><N value={r.loadingMinSec ?? 3} min={0} onCommit={(x) => set(["result", "loadingMinSec"], Math.min(15, x))} /></Row>}
+        {r.loadingOn !== false && <Row label="Tunggu maksimal (detik)" hint="5–90. Lewat batas ini hasil tetap ditampilkan; Live/GIF yang belum jadi muncul menyusul."><N value={r.loadingMaxSec ?? 20} min={5} onCommit={(x) => set(["result", "loadingMaxSec"], Math.min(90, x))} /></Row>}
         <Notice tone="info">Jeda antar foto dan lebar GIF memakai kartu GIF di bawah. Kalau tampilan awal tidak tersedia, yang dibuka adalah Foto.</Notice>
       </Card>)}
       {vis("GIF") && (

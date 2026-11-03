@@ -129,7 +129,7 @@ const DEFAULTS = {
   // ---- PENGATURAN MODE ----
   gif: { frames: 4, frameDelayMs: 600, width: 600 },
   // ---- HASIL AKHIR: tampilan apa saja yang dibuat & tombol di bawah template (Foto selalu ada) ----
-  result: { live: true, gif: true, defaultView: "photo", gifStyle: "template", gifHoldMs: 1800 }, // gifStyle: template | plain | both
+  result: { live: true, gif: true, defaultView: "photo", gifStyle: "template", gifHoldMs: 1800, loadingOn: true, loadingMinSec: 3, loadingMaxSec: 20 }, // loading* = layar tunggu sebelum hasil // gifStyle: template | plain | both
   // ---- TEMPLATE ANIMASI: tiap jepretan merekam klip pendek (siap-siap -> cekrek -> reaksi), lalu dipasang ke slot template jadi GIF gerak ----
   // Hanya berlaku untuk template yang saklar "Template animasi"-nya dinyalakan di Template Editor.
   animated: {
@@ -423,6 +423,9 @@ function update(patch) {
       defaultView: pick(r.defaultView, ["photo", "live", "gif"], cr.defaultView),
       gifStyle: pick(r.gifStyle, ["template", "plain", "both"], cr.gifStyle),
       gifHoldMs: num(r.gifHoldMs, 0, 6000, cr.gifHoldMs),
+      loadingOn: bool(r.loadingOn, cr.loadingOn ?? true),
+      loadingMinSec: num(r.loadingMinSec, 0, 15, cr.loadingMinSec ?? 3),
+      loadingMaxSec: Math.max(num(r.loadingMaxSec, 5, 90, cr.loadingMaxSec ?? 20), num(r.loadingMinSec, 0, 15, cr.loadingMinSec ?? 3)),
     };
   }
   if (isObj(p.animated)) {

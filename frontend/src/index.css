@@ -347,3 +347,14 @@ textarea:not([readonly]) {
   0%, 55% { caret-color: var(--red, #E02843); }
   55.01%, 100% { caret-color: transparent; }
 }
+
+/* Layar tunggu hasil (ResultLoading). Di luar @layer & tanpa media reduce-motion: PC booth sering mematikan animasi Windows. */
+.rl-overlay { pointer-events: auto; }
+.rl-card { background: #fff; border: 1px solid #000; box-shadow: 0 calc(var(--u) * 10) calc(var(--u) * 26) rgba(0,0,0,.35); transform: rotate(-2deg); animation: rl-float 3.2s ease-in-out infinite; }
+.rl-dot { display: block; border-radius: 50%; background: #E02843; animation: rl-dot 1s ease-in-out infinite; }
+.rl-mark { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: calc(var(--u) * 3) solid rgba(255,255,255,.85); box-sizing: border-box; font-weight: 800; color: #fff; animation: rl-ring 1.2s ease-in-out infinite; }
+.rl-step--done .rl-mark { background: #2E9E5B; border-color: #2E9E5B; animation: none; }
+@keyframes rl-float { 0%, 100% { transform: rotate(-2deg) translateY(0); } 50% { transform: rotate(-1deg) translateY(calc(var(--u) * -10)); } }
+@keyframes rl-dot { 0%, 100% { transform: scale(.6); opacity: .45; } 50% { transform: scale(1.25); opacity: 1; } }
+@keyframes rl-ring { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.rl-hide > *:not(.rl-overlay) { visibility: hidden; }

@@ -10,6 +10,7 @@ import { whenClipsReady, hasClips } from "../utils/clipStore";
 import { composeImage } from "../utils/composeImage";
 import { dataUrlToImageData, encodeGif } from "../utils/gif";
 import SesiDecor from "../components/SesiDecor";
+import ResultLoading from "../components/ResultLoading";
 import useShape from "../hooks/useShape";
 import { printFinal, printingCfg } from "../services/printService";
 import { API_BASE } from "../services/settingsService";
@@ -44,6 +45,9 @@ export default function ResultScreen({ session, dispatch }) {
   const [gif, setGif] = useState(null);       // GIF foto-foto muncul satu per satu di dalam template { previewUrl, url }
   const [live, setLive] = useState(null);     // video klip momen di tiap slot template { previewUrl, kind: "video" | "img" }
   const [gifBusy, setGifBusy] = useState(false);
+  const [genDone, setGenDone] = useState(false);     // semua yang akan dibuat (foto, Live, GIF) sudah selesai / dilewati
+  const [minPassed, setMinPassed] = useState(false); // layar tunggu sudah tampil cukup lama (tidak berkedip)
+  const [maxPassed, setMaxPassed] = useState(false); // batas tunggu habis: tampilkan hasil apa adanya
   const [view, setView] = useState("photo");  // photo | live | gif
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
@@ -99,12 +103,22 @@ export default function ResultScreen({ session, dispatch }) {
     fetch(`${API_BASE}/api/online`).then((r) => r.json()).then((d) => { if (!off && d.offline) setOffline(true); }).catch(() => {});
     return () => { off = true; };
   }, []);
-  const { remaining } = useCountdown(timeout || 1, () => timeout && (setHideQr(true), dispatch({ type: "DONE" })), timeout > 0 && !hideQr && step === "main");
+  // Layar tunggu: tampil sampai Foto + Live + GIF siap (min / maks detik diatur admin). Timer layar akhir baru jalan sesudahnya.
+  const loadingOn = isPhoto && R.loadingOn !== false;
+  useEffect(() => {
+    if (!loadingOn) return undefined;
+    const a = setTimeout(() => setMinPassed(true), Math.max(0, R.loadingMinSec ?? 3) * 1000);
+    const b = setTimeout(() => setMaxPassed(true), Math.max(5, R.loadingMaxSec ?? 20) * 1000);
+    return () => { clearTimeout(a); clearTimeout(b); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingOn]);
+  const loading = loadingOn && !error && !maxPassed && (!genDone || !minPassed);
+  const { remaining } = useCountdown(timeout || 1, () => timeout && (setHideQr(true), dispatch({ type: "DONE" })), timeout > 0 && !hideQr && step === "main" && !loading);
 
   useEffect(() => {
     if (!isPhoto) return;
     let cancelled = false;
-    setError(null);
+    setError(null); setGenDone(false);
     (async () => {
       try {
         const template = session.selectedTemplate;
@@ -177,7 +191,7 @@ export default function ResultScreen({ session, dispatch }) {
         }
       } catch (err) {
         if (!cancelled) setError(err.message || "Gagal menyiapkan hasil.");
-      }
+      } finally { if (!cancelled) setGenDone(true); }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,7 +266,13 @@ export default function ResultScreen({ session, dispatch }) {
     <div className="kiosk-screen strip-screen h-full w-full overflow-hidden" data-shape={shape}>
       <div className="absolute inset-0"><SesiDecor /></div>
 
-      <div className="strip-stage">
+      <div className={loading ? "strip-stage rl-hide" : "strip-stage"}>
+        {loading && (() => {
+          const chosen = (session.photosForTemplate ?? []).map((i) => (i == null ? null : session.shots[i])).filter(Boolean);
+          const photos = (chosen.length ? chosen : session.shots).slice(0, 4);
+          const steps = [{ id: "foto", done: !!finalImage }, ...(R.live ? [{ id: "live", done: !!live || genDone }] : []), ...(R.gif ? [{ id: "gif", done: !!gif || genDone }] : [])];
+          return <ResultLoading photos={photos} mirror={!!session.editorState?.mirror} lang={sharing.thanksLang || "id"} steps={steps} CW={CW} CH={P(1117, 1800, 1200)} P={P} />;
+        })()}
         {step === "main" && (<>
         {timeout > 0 && !hideQr && (
           <div className="pay-timer" role="timer" style={{ left: U(previewOnly ? CW / 2 - 95 : P(PANEL.x + PANEL.w / 2 - 95, 445, PANEL.x + PANEL.w / 2 - 95)), top: U(previewOnly ? P(24, 40, 28) : P(70, 112, 176)), width: U(190), height: U(54), fontSize: U(32) }}>{mm}.{ss}</div>
