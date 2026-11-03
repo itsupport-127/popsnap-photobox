@@ -29,6 +29,21 @@ function pickUnit(cfg, template) {
   return cfg.main;
 }
 
+// Status printer Windows (bitmask PRINTER_STATUS_*): error, kertas macet, kertas habis, masalah kertas, offline, pintu terbuka.
+const PRINTER_BAD = 0x2 | 0x8 | 0x10 | 0x20 | 0x80 | 0x400000;
+/** Peringatan untuk layar tamu: printer utama tidak terdeteksi / offline / kertas habis. null = tampak normal atau tidak bisa diperiksa. Hanya peringatan, tidak memblokir cetak. */
+export async function printerProblem(cfg = printingCfg(), which = "main") {
+  const p = el();
+  if (!p || !cfg?.enabled) return null;
+  let r; try { r = await p.list(); } catch { return null; }
+  if (!r?.ok || !Array.isArray(r.printers) || !r.printers.length) return null;
+  const name = cfg[which]?.name;
+  const t = name ? r.printers.find((x) => x.name === name) : r.printers.find((x) => x.isDefault);
+  if (name && !t) return "Printer tidak terdeteksi. Silakan hubungi CS untuk mencetak.";
+  if (t && Number(t.status) & PRINTER_BAD) return "Printer sedang bermasalah (offline atau kertas habis). Silakan hubungi CS untuk mencetak.";
+  return null;
+}
+
 export async function getQuota(sessionId) {
   try { return await fetch(`${API_BASE}/api/print/quota?sessionId=${encodeURIComponent(sessionId || "")}`).then((r) => r.json()); } catch { return { allowed: 99 }; }
 }
@@ -44,7 +59,10 @@ export async function printFinal({ dataUrl, sessionId, copies = 1, template }) {
   const dup = cfg.strip2x6 && (template?.canvasWidth ?? 0) > 0 && (template.canvasHeight / template.canvasWidth) >= 2.5;
   const p = el();
   let r;
-  if (p) r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, paper: cfg.paper || "auto", autorotate: cfg.autorotate, dup });
+  if (p) {
+    r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, paper: cfg.paper || "auto", autorotate: cfg.autorotate, dup });
+    if (!r.ok && r.error && !/dibatalkan|CS/.test(r.error)) r = { ...r, error: `${r.error} Silakan hubungi CS.` };
+  }
   else r = browserPrint(dataUrl);
   if (r.ok) {
     fetch(`${API_BASE}/api/print/record`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, copies, printer: unit.name }) }).catch(() => {});

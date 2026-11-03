@@ -12,7 +12,7 @@ import { dataUrlToImageData, encodeGif } from "../utils/gif";
 import SesiDecor from "../components/SesiDecor";
 import ResultLoading from "../components/ResultLoading";
 import useShape from "../hooks/useShape";
-import { printFinal, printingCfg } from "../services/printService";
+import { printFinal, printingCfg, printerProblem } from "../services/printService";
 import { API_BASE } from "../services/settingsService";
 import { createPrintPayment, checkPaymentStatus } from "../services/paymentService";
 
@@ -59,6 +59,7 @@ export default function ResultScreen({ session, dispatch }) {
   const [step, setStep] = useState("main"); // main = layar hasil | copies = pilih jumlah Add Print | pay = bayar QRIS Add Print
   const [copiesN, setCopiesN] = useState(1);
   const [printMsg, setPrintMsg] = useState(null);
+  const [printWarn, setPrintWarn] = useState(null); // printer offline / kertas habis -> "hubungi CS" (hanya peringatan, cetak tetap dicoba)
   const autoPrinted = useRef(false);
   async function doPrint(copies) {
     setStep("main");
@@ -93,6 +94,13 @@ export default function ResultScreen({ session, dispatch }) {
     }
   }
   const cancelPay = () => { payRef.current++; setPay(null); setStep("main"); };
+  useEffect(() => {
+    if (!canPrint) return undefined;
+    let dead = false;
+    printerProblem(pcfg).then((m) => { if (!dead) setPrintWarn(m); }).catch(() => {});
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPrint]);
   useEffect(() => {
     if (canPrint && pcfg.auto && finalImage && session.sessionId && !autoPrinted.current) { autoPrinted.current = true; doPrint(pcfg.autoCopies || 1); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -345,6 +353,7 @@ export default function ResultScreen({ session, dispatch }) {
               style={{ left: U(x0), top: U(y), width: U(aw), height: U(bh), fontSize: U(fs), background: "#E02843", color: "#fff" }}>Add Print</button>}
             {showFin && <button type="button" className="strip-btn" onClick={() => dispatch({ type: "DONE" })}
               style={{ left: U(x0 + (showAdd ? aw + gap : 0)), top: U(y), width: U(fw), height: U(bh), fontSize: U(fs), background: "#ABDBAB", color: "#565656" }}>Finish</button>}
+            {!printMsg && printWarn && <p style={{ left: U(cx - 300), top: U(y + bh + 14), width: U(600), margin: 0, textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: "#ffd0d0", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{printWarn}</p>}
             {printMsg && <p style={{ left: U(cx - 300), top: U(y + bh + 14), width: U(600), margin: 0, textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: printMsg.err ? "#ffd0d0" : "#fff", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{printMsg.t}</p>}
           </>);
         })()}
