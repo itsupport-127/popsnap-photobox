@@ -48,6 +48,11 @@ async function runChecks() {
   if (pay.mode === "voucher") add("Pembayaran", "ok", "Mode voucher (bayar di kasir).");
   else if (pay.qrisDown) add("Pembayaran", "warn", "QRIS belum bisa dipakai (offline atau belum diatur). Tamu diminta menghubungi CS.", "Cek internet dan Pembayaran > QRIS.");
   else add("Pembayaran", "ok", "QRIS siap.");
+  // Simulasi QRIS = pembayaran palsu (dianggap lunas dalam 6 detik): berbahaya di booth sungguhan. Hanya admin yang boleh membaca pengaturan ini.
+  try {
+    const st = await j("/api/settings", true);
+    if (st?.payment?.qris?.simulate) add("Simulasi pembayaran", "bad", "Mode simulasi QRIS AKTIF: tamu bisa foto gratis tanpa membayar.", "Matikan di Pengaturan > Pembayaran > Mode simulasi QRIS.");
+  } catch { /* tanpa izin membaca pengaturan: lewati */ }
 
   // Printer
   const pr = pub.printing ?? {};

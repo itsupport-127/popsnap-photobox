@@ -89,3 +89,10 @@ tmp/
 temp/
 *.tmp
 _t.js
+
+# ===== Rahasia login & database (jangan pernah di-commit) =====
+backend/db/
+.jwt-secret
+
+# ===== Hasil tes =====
+e2e/*.png
