@@ -45,6 +45,20 @@ let backendProcess = null;
  */
 let quitting = false;
 let backendRestarts = 0;
+let backendStartedAt = 0;
+
+// ---- Pemantau otomatis ----
+// Log kejadian aplikasi (selain backend.log): <AppData>/POPSNAP/app.log. Dikirim ke IT kalau booth bermasalah.
+function appLog(line) {
+  try {
+    const f = path.join(app.getPath("userData"), "app.log");
+    try { if (fs.statSync(f).size > 1024 * 1024) fs.renameSync(f, f + ".old"); } catch { /* belum ada */ }
+    fs.appendFileSync(f, `${new Date().toISOString()} ${line}\n`);
+  } catch { /* abaikan */ }
+}
+// Error tak terduga di proses utama: catat saja, jangan biarkan dialog error Electron menahan layar booth.
+process.on("uncaughtException", (e) => appLog(`uncaughtException: ${(e && e.stack) || e}`));
+process.on("unhandledRejection", (e) => appLog(`unhandledRejection: ${(e && e.stack) || e}`));
 
 function startBackend() {
   if (isDev) return; // dev mode: backend dijalanin manual, biar gampang debug
@@ -70,6 +84,7 @@ function startBackend() {
   log(`\n=== ${new Date().toISOString()} backend start (${BACKEND_DIR}) ===\n`);
   let lastErr = "";
   const startedAt = Date.now();
+  backendStartedAt = startedAt;
   backendProcess.stdout.on("data", (data) => { console.log(`[backend] ${data}`); log(String(data)); });
   backendProcess.stderr.on("data", (data) => { console.error(`[backend] ${data}`); log(String(data)); lastErr = (lastErr + data).slice(-1500); });
   backendProcess.on("error", (err) => { log(`spawn error: ${err.message}\n`); dialog.showErrorBox("POPSNAP: backend gagal dijalankan", `${err.message}\n\nLog: ${logFile}`); });
@@ -80,7 +95,10 @@ function startBackend() {
       dialog.showErrorBox("POPSNAP: backend berhenti saat dinyalakan", `${lastErr.trim() || "Tidak ada pesan error."}\n\nLog lengkap: ${logFile}`);
       return;
     }
-    // Backend mati di tengah jalan (mis. error tak terduga): nyalakan lagi otomatis supaya booth tidak "mati" (maks 5x)
+    // Backend mati di tengah jalan (mis. error tak terduga): nyalakan lagi otomatis supaya booth tidak "mati" (maks 5x berturut-turut;
+    // kalau sempat berjalan stabil > 10 menit, hitungan dimulai dari nol lagi)
+    if (Date.now() - startedAt > 10 * 60 * 1000) backendRestarts = 0;
+    appLog(`backend berhenti (kode ${code}) setelah ${Math.round((Date.now() - startedAt) / 1000)} dtk`);
     if (backendRestarts < 5) { backendRestarts++; log(`Menyalakan ulang backend (#${backendRestarts})\n`); setTimeout(startBackend, 2000); }
   });
 }
@@ -161,6 +179,24 @@ function createTray() {
   tray.on("click", showWindow);
 }
 
+// Backend masih hidup tapi tidak menjawab (macet): periksa tiap 30 detik; 3x gagal berturut-turut -> matikan, lalu handler "exit" menyalakannya lagi.
+let healthFails = 0;
+function startBackendWatch() {
+  if (isDev) return;
+  setInterval(async () => {
+    if (quitting || !backendProcess || Date.now() - backendStartedAt < 90000) { healthFails = 0; return; }
+    try {
+      const r = await fetch(`${BACKEND_URL}/api/settings/public`, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      healthFails = 0;
+    } catch (e) {
+      healthFails++;
+      appLog(`backend tidak menjawab (${healthFails}/3): ${e.message}`);
+      if (healthFails >= 3 && backendProcess) { healthFails = 0; appLog("backend macet: dimatikan agar dinyalakan ulang"); try { backendProcess.kill(); } catch { /* sudah mati */ } }
+    }
+  }, 30000).unref?.();
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1080,
@@ -217,6 +253,21 @@ function createWindow() {
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     mainWindow.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("file://")) e.preventDefault(); });
   }
+  // Halaman booth crash / membeku -> muat ulang otomatis (maks 5x per 10 menit supaya tidak berputar tanpa henti)
+  let reloads = [], frozen = false;
+  const recover = (why) => {
+    appLog(`halaman bermasalah: ${why}`);
+    const now = Date.now();
+    reloads = reloads.filter((t) => now - t < 10 * 60 * 1000);
+    if (reloads.length >= 5) { appLog("terlalu sering dimuat ulang: berhenti memuat ulang otomatis"); return; }
+    reloads.push(now);
+    setTimeout(() => {
+      try { if (mainWindow && !mainWindow.isDestroyed()) { if (isDev) mainWindow.loadURL(FRONTEND_DEV_URL); else mainWindow.loadFile(FRONTEND_BUILD_PATH); } } catch (e) { appLog(`gagal memuat ulang: ${e.message}`); }
+    }, 1500);
+  };
+  mainWindow.webContents.on("render-process-gone", (_e, d) => { if (d.reason !== "clean-exit") recover(`proses halaman berhenti (${d.reason})`); });
+  mainWindow.on("unresponsive", () => { frozen = true; setTimeout(() => { if (frozen) recover("halaman tidak merespons 20 detik"); }, 20000); });
+  mainWindow.on("responsive", () => { frozen = false; });
   // Saat layar penuh (mode booth) jendela selalu di paling atas, supaya jendela/notifikasi lain tidak menutupi layar tamu
   const syncTop = () => { if (!isDev) mainWindow.setAlwaysOnTop(mainWindow.isFullScreen(), "screen-saver"); };
   mainWindow.on("enter-full-screen", () => { syncTop(); mainWindow.webContents.send("kiosk:fullscreen-changed"); });
@@ -244,6 +295,8 @@ if (gotLock) app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => ["media", "fullscreen"].includes(permission));
   if (!isDev) createTray();
   startBackend();
+  startBackendWatch();
+  appLog(`POPSNAP mulai (v${app.getVersion()})`);
   // Kasih backend waktu sebentar buat nyala sebelum window dibuka, supaya
   // konsumen gak lihat error "gagal konek backend" di detik-detik pertama.
   setTimeout(createWindow, isDev ? 0 : 1500);
