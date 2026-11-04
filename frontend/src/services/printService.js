@@ -31,6 +31,14 @@ export function paperForTemplate(cfg, template, dup) {
   return best;
 }
 
+/** Tes cetak memakai template asli + garis panduan di tepi kertas (cek apakah tercetak penuh atau terpotong). Tidak dihitung ke kuota / statistik cetak. */
+export async function printTemplateTest(cfg, template, composedUrl, which = "main") {
+  const p = el();
+  if (!p) return { ok: false, error: "Cetak tes hanya di aplikasi desktop POPSNAP (.exe)." };
+  const dup = cfg.strip2x6 && (template?.canvasWidth ?? 0) > 0 && (template.canvasHeight / template.canvasWidth) >= 2.5;
+  return p.image({ dataUrl: composedUrl, ...unitOf(cfg[which]), copies: 1, sharpening: cfg.sharpening, fit: cfg.fit, paper: paperForTemplate(cfg, template, dup), autorotate: cfg.autorotate, dup, guides: true });
+}
+
 export async function printTestPage(cfg, which = "main") {
   const p = el();
   if (!p) return { ok: false, error: "Cetak tes hanya di aplikasi desktop POPSNAP (.exe)." };

@@ -63,7 +63,21 @@ async function printHtml(html, { deviceName, copies = 1, landscape = false, file
   finally { try { w.destroy(); } catch { /* sudah ditutup */ } try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* abaikan */ } }
 }
 
-/** o: { dataUrl, printer, scale, x, y, copies, sharpening, fit: "fill"|"fit", autorotate, dup } */
+// Garis panduan untuk tes cetak dengan template asli: digambar di tepi KERTAS (tidak ikut skala / geser gambar).
+// Garis merah luar tepat di tepi kertas; bila hilang di satu sisi, sisi itu terpotong. Ring 3 mm putus-putus, tanda sudut, dan silang tengah.
+function guidesHtml(label) {
+  const L = "position:absolute;pointer-events:none;";
+  const corner = (pos) => { const [v, h] = pos; return `<div style="${L}${v}:0;${h}:0;width:6mm;height:6mm;border-${v}:0.35mm solid #e00;border-${h}:0.35mm solid #e00"></div>`; };
+  return `<div style="${L}inset:0;z-index:9">
+    <div style="${L}inset:0.2mm;border:0.3mm solid #e00"></div>
+    <div style="${L}inset:3mm;border:0.25mm dashed #e00"></div>
+    ${[["top", "left"], ["top", "right"], ["bottom", "left"], ["bottom", "right"]].map(corner).join("")}
+    <div style="${L}left:0;right:0;top:50%;border-top:0.2mm dashed rgba(224,0,0,.7)"></div><div style="${L}top:0;bottom:0;left:50%;border-left:0.2mm dashed rgba(224,0,0,.7)"></div>
+    <div style="${L}left:50%;bottom:6mm;transform:translateX(-50%);font:2.6mm sans-serif;background:#fff;color:#c00;padding:0.4mm 1.4mm;white-space:nowrap">${esc(label)}</div>
+  </div>`;
+}
+
+/** o: { dataUrl, printer, scale, x, y, copies, sharpening, fit: "fill"|"fit", autorotate, dup, guides } */
 async function print(o) {
   const m = /^data:image\/(png|jpeg);base64,(.+)$/.exec(String(o.dataUrl || ""));
   if (!m) return { ok: false, error: "Gambar tidak valid." };
@@ -90,7 +104,8 @@ async function print(o) {
   window.__info = { w: img.naturalWidth, h: img.naturalHeight };
 })();`;
   const body = o.dup ? '<img><img>' : '<img>';
-  const html = pageHtml({ body, scale: o.scale, x: o.x, y: o.y, script, pre: '<script src="d.js"></script>' });
+  const pre = (o.guides ? guidesHtml("TES CETAK — garis merah luar hilang di satu sisi = sisi itu terpotong") : "") + '<script src="d.js"></script>';
+  const html = pageHtml({ body, scale: o.scale, x: o.x, y: o.y, script, pre });
   const dataJs = Buffer.from("window.__src=" + JSON.stringify(o.dataUrl) + ";");
   // tunggu skrip selesai (window.__info terisi) lalu tentukan orientasi kertas dari bentuk gambar
   const rot = !!o.autorotate && !o.dup; // strip 2x6 dobel selalu tegak

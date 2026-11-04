@@ -5,11 +5,103 @@ import { Check, Range, Row, Select } from "./controls";
 import { addSharedPrinter, canSilentPrint, listPrinters, printTestPage } from "../../services/printService";
 import { getPrintStats, resetPrintCount } from "../../services/settingsService";
 import { listTemplates } from "../../services/templateService";
-import { paperForTemplate } from "../../services/printService";
+import { canSilentPrint as canPrintNow, paperForTemplate, printTemplateTest } from "../../services/printService";
+import { composeImage } from "../../utils/composeImage";
+import { photoSlotPlan } from "../../utils/templatePhotos";
 
 const PAPER_IN = { "2x6": [2, 6], "4x6": [4, 6], "5x7": [5, 7], "6x8": [6, 8], "8x10": [8, 10], a5: [5.83, 8.27], a4: [8.27, 11.69] };
 
 /** Cek tiap template: apakah rasio gambarnya sama dengan kertas? Kalau beda, mode "Penuhi kertas" memotong tepinya (mode "Utuh" menyisakan bingkai putih). */
+/** Pratinjau di layar: template di atas kertas yang dipilih, lengkap dengan skala / geser printer utama.
+ *  Merah bergaris = bagian yang TERPOTONG (keluar kertas), biru bergaris = kertas kosong (bingkai putih). Plus tombol tes cetak dengan template asli + garis panduan. */
+export function PrintPreview({ pr }) {
+  const [tpls, setTpls] = useState([]);
+  const [id, setId] = useState("");
+  const [img, setImg] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { let dead = false; listTemplates().then((t) => { if (!dead && Array.isArray(t)) setTpls(t.filter((x) => x.canvasWidth && x.canvasHeight)); }).catch(() => {}); return () => { dead = true; }; }, []);
+  const t = tpls.find((x) => String(x.id) === String(id)) ?? tpls[0];
+
+  // Gambar template (slot foto diisi warna contoh) -> dipakai pratinjau & tes cetak
+  useEffect(() => {
+    if (!t) return undefined;
+    let dead = false;
+    setImg(null);
+    (async () => {
+      try {
+        const layers = t.layers ?? [];
+        const n = Math.max(1, photoSlotPlan(layers).count);
+        const c = document.createElement("canvas"); c.width = 600; c.height = 600;
+        const g = c.getContext("2d"), gr = g.createLinearGradient(0, 0, 600, 600); gr.addColorStop(0, "#9ec5fe"); gr.addColorStop(1, "#f8b4c8");
+        g.fillStyle = gr; g.fillRect(0, 0, 600, 600);
+        const url = await composeImage({ canvasWidth: t.canvasWidth, canvasHeight: t.canvasHeight, layers, photos: Array(n).fill(c.toDataURL("image/jpeg", 0.8)), backgroundColor: t.backgroundColor, editorState: { filter: "none", mirror: false, adjust: {}, stickers: [] } });
+        if (!dead) setImg(url);
+      } catch { if (!dead) setImg(null); }
+    })();
+    return () => { dead = true; };
+  }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!t) return null;
+  const W = Number(t.canvasWidth), H = Number(t.canvasHeight);
+  const dup = pr.strip2x6 && H / W >= 2.5;
+  const key = paperForTemplate(pr, t, dup);
+  const c = (dup ? 2 * W : W) / H;
+  const known = PAPER_IN[key];
+  let pw, ph;
+  if (known) { const land = pr.autorotate && !dup && c > 1; pw = land ? Math.max(...known) : Math.min(...known); ph = land ? Math.min(...known) : Math.max(...known); }
+  else { pw = c; ph = 1; } // ukuran kertas tidak diketahui: dianggap sama dengan template
+  const p = pw / ph;
+  const MAXD = 250, m = 36;
+  const PW = p >= 1 ? MAXD : MAXD * p, PH = p >= 1 ? MAXD / p : MAXD;
+  const u = pr.main;
+  const sc = Math.max(0.5, Math.min(1.5, (Number(u.scale) || 100) / 100));
+  let w, h;
+  if (pr.fit === "fit") { if (c > p) { w = PW; h = PW / c; } else { h = PH; w = PH * c; } }
+  else if (c > p) { h = PH; w = PH * c; } else { w = PW; h = PW / c; }
+  w *= sc; h *= sc;
+  const cx = PW / 2 + ((Number(u.x) || 0) / 2 / 100) * PW, cy = PH / 2 + ((Number(u.y) || 0) / 2 / 100) * PH;
+  const left = cx - w / 2, top = cy - h / 2;
+  // Bagian gambar yang keluar kertas / kertas yang tidak tertutup (dalam % luas kertas)
+  const ix = Math.max(0, Math.min(PW, left + w) - Math.max(0, left)), iy = Math.max(0, Math.min(PH, top + h) - Math.max(0, top));
+  const cutPct = Math.round((1 - (ix * iy) / (w * h)) * 100), emptyPct = Math.round((1 - (ix * iy) / (PW * PH)) * 100);
+  const pics = (op) => (dup ? [0, 1] : [0]).map((i) => <img key={i} src={img} alt="" draggable={false} style={{ width: dup ? "50%" : "100%", height: "100%", objectFit: "fill", display: "block", opacity: op }} />);
+  const stripes = (a, b) => `repeating-linear-gradient(45deg, ${a} 0 5px, ${b} 5px 10px)`;
+
+  async function testPrint() {
+    if (!img) return;
+    setBusy(true); setMsg(null);
+    const r = await printTemplateTest(pr, t, img, "main");
+    setBusy(false);
+    setMsg(r.ok ? { tone: "info", t: "Tes cetak dikirim. Lihat garis merah di tepi kertas: kalau hilang di satu sisi, sisi itu terpotong." } : { tone: "error", t: r.error });
+  }
+
+  return (
+    <div className="border border-[#D5DCE4] bg-[#F4F7FA] p-3 mt-2">
+      <div className="text-[12px] font-semibold text-[#55606E] mb-2">PRATINJAU CETAK (sesuai pengaturan di atas + skala / geser printer utama)</div>
+      <div className="flex gap-4 flex-wrap items-start">
+        <div style={{ position: "relative", width: PW + 2 * m, height: PH + 2 * m, flex: "none" }}>
+          {img && (
+            <div style={{ position: "absolute", left: m + left, top: m + top, width: w, height: h, display: "flex", background: stripes("#ffc9c9", "#fff"), boxSizing: "border-box", outline: "1px dashed #d33" }}>{pics(0.4)}</div>
+          )}
+          <div style={{ position: "absolute", left: m, top: m, width: PW, height: PH, overflow: "hidden", background: stripes("#cfe0ff", "#fff"), border: "2px solid #000", boxSizing: "content-box", marginLeft: -2, marginTop: -2, boxShadow: "0 2px 8px rgba(0,0,0,.25)" }}>
+            {img ? <div style={{ position: "absolute", left, top, width: w, height: h, display: "flex" }}>{pics(1)}</div> : <span className="text-[12px] text-[#6B7684] p-2">Memuat…</span>}
+          </div>
+        </div>
+        <div className="flex-1 min-w-[240px] text-[12px] text-[#3a4452] space-y-1.5">
+          <Select className="max-w-xs" value={String(t.id)} onChange={(v) => setId(v)} options={tpls.map((x) => [String(x.id), `${x.name} (${x.canvasWidth}×${x.canvasHeight})`])} />
+          <div>Kertas: <b>{known ? key : "ikuti printer (tidak diketahui)"}</b> {known ? `(${pw.toFixed(2)}×${ph.toFixed(2)} inci)` : ""} · {dup ? "strip dobel" : pr.fit === "fit" ? "mode Utuh" : "mode Penuhi kertas"}</div>
+          <div><span style={{ display: "inline-block", width: 14, height: 14, background: stripes("#ff9a9a", "#fff"), border: "1px solid #d33", verticalAlign: "middle" }} /> merah = <b>terpotong</b> ({cutPct}% gambar) &nbsp; <span style={{ display: "inline-block", width: 14, height: 14, background: stripes("#9bbcff", "#fff"), border: "1px solid #36c", verticalAlign: "middle" }} /> biru = kertas kosong ({emptyPct}% kertas)</div>
+          <div className={cutPct > 0 ? "text-[#B00020] font-semibold" : "text-[#1a7f37] font-semibold"}>{cutPct > 0 ? `Ada bagian gambar yang terpotong (${cutPct}%).` : emptyPct > 0 ? `Tidak terpotong, tapi ada bingkai putih (${emptyPct}% kertas).` : "Pas: tidak terpotong dan tidak ada bingkai putih."}</div>
+          <div className="text-[#6B7684]">Pratinjau tidak memperhitungkan batas cetak printer (lihat Cetak halaman uji untuk mengukurnya).</div>
+          <div className="flex items-center gap-3 pt-1"><Btn onClick={testPrint} disabled={!canPrintNow() || !img || busy}>Cetak tes dengan template ini</Btn>{msg && <span className={`text-[12px] ${msg.tone === "error" ? "text-red-600" : "text-emerald-600"}`}>{msg.t}</span>}</div>
+          {!canPrintNow() && <div className="text-[#6B7684]">Tombol tes cetak hanya aktif di aplikasi desktop (.exe).</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FitCheck({ pr }) {
   const [tpls, setTpls] = useState(null);
   useEffect(() => { let dead = false; listTemplates().then((t) => { if (!dead) setTpls(Array.isArray(t) ? t : []); }).catch(() => { if (!dead) setTpls([]); }); return () => { dead = true; }; }, []);
@@ -139,6 +231,7 @@ export default function SettingsPrinting({ s, set, only }) {
         <Row label="Putar otomatis"><Check checked={pr.autorotate} onChange={(x) => set(["printing", "autorotate"], x)} label="Orientasi kertas mengikuti orientasi template" /></Row>
         <Row label="Ukuran kertas" hint="Ukuran yang dikirim ke printer. Samakan dengan kertas yang terpasang (mis. 4x6 untuk 10x15 cm). 'Ikuti printer' memakai bawaan driver, yang kadang berbeda dari pilihan di Printing Preferences sehingga hasil terpotong atau ada tepi putih."><Select value={pr.paper ?? "auto"} onChange={(x) => set(["printing", "paper"], x)} options={[["auto", "Ikuti printer"], ["template", "Ikuti ukuran template (otomatis)"], ["2x6", "2x6 inci (strip)"], ["4x6", "4x6 inci (10x15 cm)"], ["5x7", "5x7 inci (13x18 cm)"], ["6x8", "6x8 inci (15x20 cm)"], ["8x10", "8x10 inci (20x25 cm)"], ["a5", "A5"], ["a4", "A4"]]} /></Row>
         <FitCheck pr={pr} />
+        <PrintPreview pr={pr} />
         <Row label="Ukuran di kertas"><Select value={pr.fit} onChange={(x) => set(["printing", "fit"], x)} options={[["fill", "Penuhi kertas (tepi bisa terpotong sedikit)"], ["fit", "Utuh (bisa ada bingkai putih)"]]} /></Row>
         <Row label="Batasi cetak"><Check checked={pr.limit.enabled} onChange={(x) => set(["printing", "limit", "enabled"], x)} label="Batasi jumlah cetak per event dan per sesi" /></Row>
         {pr.limit.enabled && (<>
