@@ -44,7 +44,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 }
 
 // Ukuran kertas (mikron) -> dikirim ke printer. "auto" = ikuti bawaan printer (sering berbeda dari yang dipilih di Printing Preferences).
-const PAPER = { "4x6": [101600, 152400], "5x7": [127000, 177800], "6x8": [152400, 203200], a5: [148000, 210000], a4: [210000, 297000] };
+const PAPER = { "2x6": [50800, 152400], "4x6": [101600, 152400], "5x7": [127000, 177800], "6x8": [152400, 203200], a5: [148000, 210000], "8x10": [203200, 254000], a4: [210000, 297000] };
 
 async function printHtml(html, { deviceName, copies = 1, landscape = false, files = {}, probe, paper }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "popsnap-print-"));
@@ -100,12 +100,18 @@ async function print(o) {
 
 async function testPage(o) {
   const lab = `${esc(o.printer || "(printer bawaan Windows)")} — skala ${o.scale}% · geser ${o.x}/${o.y}`;
-  const body = `<div style="flex:1;position:relative;box-sizing:border-box;border:3px solid #000;font:14px sans-serif">
+  // Penggaris tepi: persegi panjang bersarang tiap 1 mm dari tepi kertas (1..6). Angka TERKECIL yang garisnya tampak utuh di sebuah sisi
+  // = berapa mm sisi itu terpotong (batas area cetak printer / driver tidak "Borderless").
+  const rings = [1, 2, 3, 4, 5, 6].map((i) => `<div style="position:absolute;left:${i}mm;top:${i}mm;right:${i}mm;bottom:${i}mm;border:0.25mm solid #000"></div>`).join("");
+  const nums = [1, 2, 3, 4, 5, 6].map((i) => { const o = `calc(18% + ${i * 9}%)`; const t = "position:absolute;font:1.7mm sans-serif;line-height:1;background:#fff;padding:0 .3mm";
+    return `<span style="${t};left:${o};top:${i - 0.9}mm">${i}</span><span style="${t};left:${o};bottom:${i - 0.9}mm">${i}</span><span style="${t};top:${o};left:${i - 0.4}mm">${i}</span><span style="${t};top:${o};right:${i - 0.4}mm">${i}</span>`; }).join("");
+  const body = `<div style="flex:1;position:relative;box-sizing:border-box;border:3px solid #000;font:14px sans-serif">${rings}${nums}
     <div style="position:absolute;left:0;right:0;top:50%;border-top:1px dashed #888"></div><div style="position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #888"></div>
-    <div style="position:absolute;left:8px;top:6px">KIRI-ATAS</div><div style="position:absolute;right:8px;top:6px">KANAN-ATAS</div>
-    <div style="position:absolute;left:8px;bottom:6px">KIRI-BAWAH</div><div style="position:absolute;right:8px;bottom:6px">KANAN-BAWAH</div>
+    <div style="position:absolute;left:8mm;top:8mm;background:#fff">KIRI-ATAS</div><div style="position:absolute;right:8mm;top:8mm;background:#fff">KANAN-ATAS</div>
+    <div style="position:absolute;left:8mm;bottom:8mm;background:#fff">KIRI-BAWAH</div><div style="position:absolute;right:8mm;bottom:8mm;background:#fff">KANAN-BAWAH</div>
     <div style="position:absolute;left:0;right:0;top:44%;text-align:center;font-size:22px;font-weight:700">POPSNAP — TES CETAK</div>
-    <div style="position:absolute;left:0;right:0;top:52%;text-align:center">${lab}</div></div>`;
+    <div style="position:absolute;left:0;right:0;top:52%;text-align:center">${lab}</div>
+    <div style="position:absolute;left:10%;right:10%;top:60%;text-align:center;font-size:11px;color:#333">Garis bernomor = jarak dari tepi kertas (mm). Angka terkecil yang tampak utuh di tiap sisi = mm yang terpotong di sisi itu.</div></div>`;
   return printHtml(pageHtml({ body, scale: o.scale, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1, paper: o.paper });
 }
 

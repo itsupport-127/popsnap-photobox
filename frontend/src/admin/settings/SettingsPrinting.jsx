@@ -4,6 +4,47 @@ import { Btn, Card, Notice } from "../ui";
 import { Check, Range, Row, Select } from "./controls";
 import { addSharedPrinter, canSilentPrint, listPrinters, printTestPage } from "../../services/printService";
 import { getPrintStats, resetPrintCount } from "../../services/settingsService";
+import { listTemplates } from "../../services/templateService";
+import { paperForTemplate } from "../../services/printService";
+
+const PAPER_IN = { "2x6": [2, 6], "4x6": [4, 6], "5x7": [5, 7], "6x8": [6, 8], "8x10": [8, 10], a5: [5.83, 8.27], a4: [8.27, 11.69] };
+
+/** Cek tiap template: apakah rasio gambarnya sama dengan kertas? Kalau beda, mode "Penuhi kertas" memotong tepinya (mode "Utuh" menyisakan bingkai putih). */
+export function FitCheck({ pr }) {
+  const [tpls, setTpls] = useState(null);
+  useEffect(() => { let dead = false; listTemplates().then((t) => { if (!dead) setTpls(Array.isArray(t) ? t : []); }).catch(() => { if (!dead) setTpls([]); }); return () => { dead = true; }; }, []);
+  if (!tpls) return null;
+  const rows = [];
+  for (const t of tpls) {
+    const W = Number(t.canvasWidth), H = Number(t.canvasHeight);
+    if (!W || !H) continue;
+    const dup = pr.strip2x6 && H / W >= 2.5;
+    const key = paperForTemplate(pr, t, dup);
+    const dim = PAPER_IN[key];
+    if (!dim) { if (pr.paper !== "auto" && pr.paper !== "template") continue; rows.push({ t, note: "Ukuran kertas: ikuti printer (tidak bisa dicek di sini). Pilih ukuran kertas baku supaya bisa dicek.", level: "info" }); continue; }
+    // rasio isi (strip dobel = dua strip berdampingan) vs rasio kertas; kertas diputar mengikuti isi bila "Putar otomatis" aktif
+    const c = (dup ? 2 * W : W) / H;
+    const pw = pr.autorotate && !dup && c > 1 ? Math.max(...dim) : Math.min(...dim), ph = pr.autorotate && !dup && c > 1 ? Math.min(...dim) : Math.max(...dim);
+    const p = pw / ph;
+    const diff = Math.abs(c - p) / p;
+    if (diff < 0.012) continue;
+    const shown = Math.min(c / p, p / c); // bagian yang tampil
+    const pct = Math.round((1 - shown) * 100);
+    const axis = c < p ? "tinggi" : "lebar";
+    rows.push({ t, level: pr.fit === "fit" ? "warn" : "bad",
+      note: pr.fit === "fit" ? `Rasio ${c.toFixed(2)} vs kertas ${p.toFixed(2)} (${key}): ada bingkai putih ±${pct}% pada ${axis === "tinggi" ? "lebar" : "tinggi"}.`
+        : `Rasio ${c.toFixed(2)} vs kertas ${p.toFixed(2)} (${key}): ${pct}% ${axis} gambar TERPOTONG (tepi atas/bawah atau kiri/kanan).` });
+  }
+  if (!rows.length) return <Notice tone="info">Cek ukuran: semua template cocok dengan kertas yang dipilih, tidak ada yang terpotong oleh pengaturan ini. Kalau tetap terpotong, penyebabnya dari printer: nyalakan "Borderless" di Printing Preferences, atau pakai Cetak halaman uji (ada penggaris mm) untuk mengukur dan sesuaikan Skala.</Notice>;
+  return (
+    <div className="border border-[#E8C9A0] bg-[#FFF8EE] p-3 mt-2 text-[12px] text-[#5A4520]">
+      <div className="font-semibold mb-1">CEK UKURAN TEMPLATE vs KERTAS ({rows.length} template)</div>
+      <ul className="list-disc pl-5 space-y-0.5">{rows.slice(0, 10).map((r, i) => <li key={i}><b>{r.t.name}</b> ({r.t.canvasWidth}×{r.t.canvasHeight}): {r.note}</li>)}</ul>
+      {rows.length > 10 && <div className="mt-1">…dan {rows.length - 10} lainnya.</div>}
+      <div className="mt-1">Perbaiki: pilih ukuran kertas yang sama dengan template, atau pilih "Ikuti ukuran template", atau ubah ukuran kanvas template di Template Editor.</div>
+    </div>
+  );
+}
 
 const N = ({ value, min, onCommit }) => <div className="w-28"><NumInput value={value} min={min} onCommit={(v) => onCommit(Math.round(v))} /></div>;
 
@@ -96,7 +137,8 @@ export default function SettingsPrinting({ s, set, only }) {
         {pr.showButton && <Row label="Harga per salinan (Rp)" hint="0 = gratis (langsung cetak). Lebih dari 0 = tamu scan QRIS lagi, lunas baru dicetak. Butuh QRIS aktif & internet."><div className="w-40"><NumInput value={pr.price} min={0} step={500} onCommit={(x) => set(["printing", "price"], Math.round(x))} /></div></Row>}
         <Row label="Cetak ke kedua printer"><Check checked={pr.both} disabled={!pr.second.name} onChange={(x) => set(["printing", "both"], x)} label="Cetak bergantian ke printer utama dan kedua" /></Row>
         <Row label="Putar otomatis"><Check checked={pr.autorotate} onChange={(x) => set(["printing", "autorotate"], x)} label="Orientasi kertas mengikuti orientasi template" /></Row>
-        <Row label="Ukuran kertas" hint="Ukuran yang dikirim ke printer. Samakan dengan kertas yang terpasang (mis. 4x6 untuk 10x15 cm). 'Ikuti printer' memakai bawaan driver, yang kadang berbeda dari pilihan di Printing Preferences sehingga hasil terpotong atau ada tepi putih."><Select value={pr.paper ?? "auto"} onChange={(x) => set(["printing", "paper"], x)} options={[["auto", "Ikuti printer"], ["4x6", "4x6 inci (10x15 cm)"], ["5x7", "5x7 inci (13x18 cm)"], ["6x8", "6x8 inci (15x20 cm)"], ["a5", "A5"], ["a4", "A4"]]} /></Row>
+        <Row label="Ukuran kertas" hint="Ukuran yang dikirim ke printer. Samakan dengan kertas yang terpasang (mis. 4x6 untuk 10x15 cm). 'Ikuti printer' memakai bawaan driver, yang kadang berbeda dari pilihan di Printing Preferences sehingga hasil terpotong atau ada tepi putih."><Select value={pr.paper ?? "auto"} onChange={(x) => set(["printing", "paper"], x)} options={[["auto", "Ikuti printer"], ["template", "Ikuti ukuran template (otomatis)"], ["2x6", "2x6 inci (strip)"], ["4x6", "4x6 inci (10x15 cm)"], ["5x7", "5x7 inci (13x18 cm)"], ["6x8", "6x8 inci (15x20 cm)"], ["8x10", "8x10 inci (20x25 cm)"], ["a5", "A5"], ["a4", "A4"]]} /></Row>
+        <FitCheck pr={pr} />
         <Row label="Ukuran di kertas"><Select value={pr.fit} onChange={(x) => set(["printing", "fit"], x)} options={[["fill", "Penuhi kertas (tepi bisa terpotong sedikit)"], ["fit", "Utuh (bisa ada bingkai putih)"]]} /></Row>
         <Row label="Batasi cetak"><Check checked={pr.limit.enabled} onChange={(x) => set(["printing", "limit", "enabled"], x)} label="Batasi jumlah cetak per event dan per sesi" /></Row>
         {pr.limit.enabled && (<>

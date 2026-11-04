@@ -15,10 +15,26 @@ export const addSharedPrinter = (unc) => (el() ? el().addShare(unc) : Promise.re
 
 const unitOf = (u) => ({ printer: u.name || "", scale: u.scale, x: u.x, y: u.y });
 
+// Ukuran kertas yang dikirim ke printer. "template" = ikuti ukuran kertas yang tertulis di template (strip dobel -> 4x6);
+// template ukuran custom dicocokkan ke kertas baku terdekat menurut rasio. Tidak ketemu -> "auto" (ikuti printer).
+const PRESETS = { "2x6": [2, 6], "4x6": [4, 6], "5x7": [5, 7], "6x8": [6, 8], "8x10": [8, 10], a4: [8.27, 11.69] };
+export function paperForTemplate(cfg, template, dup) {
+  const p = cfg.paper || "auto";
+  if (p !== "template") return p;
+  if (dup) return "4x6";
+  if (PRESETS[template?.paperSize]) return template.paperSize;
+  const w = template?.canvasWidth, h = template?.canvasHeight;
+  if (!w || !h) return "auto";
+  const ar = Math.min(w, h) / Math.max(w, h);
+  let best = "auto", bd = 0.03; // selisih rasio maksimum yang masih dianggap sama
+  for (const [k, [a, b]] of Object.entries(PRESETS)) { const d = Math.abs(a / b - ar); if (d < bd) { bd = d; best = k; } }
+  return best;
+}
+
 export async function printTestPage(cfg, which = "main") {
   const p = el();
   if (!p) return { ok: false, error: "Cetak tes hanya di aplikasi desktop POPSNAP (.exe)." };
-  return p.test({ ...unitOf(cfg[which]), paper: cfg.paper || "auto" });
+  return p.test({ ...unitOf(cfg[which]), paper: cfg.paper === "template" ? "auto" : cfg.paper || "auto" });
 }
 
 // Printer berikutnya untuk cetak bergantian (printer utama & kedua)
@@ -60,7 +76,7 @@ export async function printFinal({ dataUrl, sessionId, copies = 1, template }) {
   const p = el();
   let r;
   if (p) {
-    r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, paper: cfg.paper || "auto", autorotate: cfg.autorotate, dup });
+    r = await p.image({ dataUrl, ...unitOf(unit), copies, sharpening: cfg.sharpening, fit: cfg.fit, paper: paperForTemplate(cfg, template, dup), autorotate: cfg.autorotate, dup });
     if (!r.ok && r.error && !/dibatalkan|CS/.test(r.error)) r = { ...r, error: `${r.error} Silakan hubungi CS.` };
   }
   else r = browserPrint(dataUrl);

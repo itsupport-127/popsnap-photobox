@@ -316,7 +316,7 @@ function update(patch) {
       main: unit(pr.main, cp.main), second: unit(pr.second, cp.second),
       auto: bool(pr.auto, cp.auto), autoCopies: num(pr.autoCopies, 1, 3, cp.autoCopies), price: num(pr.price, 0, 10000000, cp.price), showButton: bool(pr.showButton, cp.showButton), both: bool(pr.both, cp.both), autorotate: bool(pr.autorotate, cp.autorotate),
       fit: pick(pr.fit, ["fill", "fit"], cp.fit),
-      paper: pick(pr.paper, ["auto", "4x6", "5x7", "6x8", "a5", "a4"], cp.paper ?? "auto"),
+      paper: pick(pr.paper, ["auto", "template", "2x6", "4x6", "5x7", "6x8", "8x10", "a5", "a4"], cp.paper ?? "auto"),
       limit: { enabled: bool(lm.enabled, cp.limit.enabled), perEvent: num(lm.perEvent, 1, 1000000, cp.limit.perEvent), perSession: num(lm.perSession, 1, 99, cp.limit.perSession) },
       copies: num(pr.copies, 1, 9, cp.copies),
       sharpening: pick(pr.sharpening, ["none", "low", "medium", "high"], cp.sharpening),
