@@ -10,7 +10,7 @@ import { can } from "../services/authService";
 import { LayerContent, LayerBox, layerBoxStyle, containerStyle, DEFAULT_SHADOW } from "../components/TemplatePreview";
 import { photoSlotPlan } from "../utils/templatePhotos";
 import TemplatePicker from "./TemplatePicker";
-import { buildZipExport, exportFileName, parseImportFile, dataUrlToFile, printTestCopy } from "./templateIO";
+import { buildZipExport, exportFileName, parseImportFile, parseDslrFolder, dataUrlToFile, printTestCopy } from "./templateIO";
 import { chooseSaveTarget, chooseOpenFile } from "./saveFile";
 import {
   PAPERS, DPIS, FONTS, SHAPES, UNITS, paperPx, fromPx, toPx, layerName,
@@ -97,6 +97,8 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
   const replaceInputRef = useRef(null);
   const replaceIdRef = useRef(null);
   const importInputRef = useRef(null);
+  const importDirRef = useRef(null);
+  const [bulkAsk, setBulkAsk] = useState(null); // beberapa template dari folder dslrBooth, menunggu kategori / harga
   const [busyMsg, setBusyMsg] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -638,6 +640,31 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
     if (picked) await importFromFile(picked);
   }
 
+  // Impor dari FOLDER dslrBooth (tanpa perlu di-ZIP): satu template -> dialog biasa; beberapa -> satu dialog untuk semuanya.
+  async function handleImportFolder(e) {
+    const list = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!list.length || blockedNoSlot()) return;
+    if (dirty && !confirm("Ada perubahan yang belum disimpan. Tetap impor? (Template yang sedang dibuka akan ditutup.)")) return;
+    setBusyMsg("Membaca folder...");
+    try {
+      const found = await parseDslrFolder(list);
+      if (!found.length) throw new Error(found.errors?.join("\n") || "Tidak ada template yang bisa dibaca.");
+      if (found.length === 1 && !found.errors?.length) setImportAsk(found[0]);
+      else setBulkAsk({ items: found, errors: found.errors ?? [] });
+    } catch (err) { alert(err.message || "Gagal membaca folder."); }
+    finally { setBusyMsg(null); }
+  }
+
+  async function finishBulkImport(items, { category, price }) {
+    setBulkAsk(null);
+    for (const [i, parsed] of items.entries()) {
+      setBusyMsg(`Mengimpor ${i + 1} dari ${items.length}: ${parsed.meta.name}`);
+      await finishImport(parsed, { name: parsed.meta.name, category, price });
+    }
+    alert(`${items.length} template diimpor. Atur harga tiap template di editor bila perlu.`);
+  }
+
   function handleImportFile(e) {
     const file = e.target.files[0];
     e.target.value = "";
@@ -725,6 +752,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
     <div className="h-screen w-screen flex flex-col bg-[#F4F7FA] text-[#181B23] text-[13px] overflow-hidden select-none">
       <input ref={imageInputRef} type="file" accept="image/png,image/jpeg" onChange={handleImagePicked} className="hidden" />
       <input ref={replaceInputRef} type="file" accept="image/png,image/jpeg" onChange={handleReplaceImage} className="hidden" />
+      <input ref={importDirRef} type="file" webkitdirectory="" directory="" multiple onChange={handleImportFolder} className="hidden" aria-label="Folder template dslrBooth" />
       <input ref={importInputRef} type="file" accept=".zip,.json,application/zip,application/json" onChange={handleImportFile} className="hidden" />
       {busyMsg && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center text-[#181B23] text-[14px]"><div className="bg-[#F4F7FA] border border-[#C7D0DA] px-6 py-4">{busyMsg}</div></div>}
 
@@ -755,6 +783,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
         <ToolbarButton icon="copy" label="Save as New" onClick={handleSaveAsNew} disabled={!doc} />
         <ToolbarButton icon="save" label={saveState === "saving" ? "Saving..." : "Save"} onClick={() => handleSave()} disabled={!doc || (!dirty && saveState !== "saving")} />
         <ToolbarButton icon="download" label="Import" onClick={handleImportClick} />
+        <ToolbarButton icon="download" label="Import Folder" onClick={() => importDirRef.current?.click()} />
         <ToolbarButton icon="upload" label="Export" onClick={handleExport} disabled={!doc} />
         <ToolbarButton icon="printer" label="Print Test Copy" onClick={handlePrintTest} disabled={!doc} />
         <ToolbarButton icon="trash" label="Delete Template" onClick={handleDeleteTemplate} disabled={!doc} />
@@ -1000,6 +1029,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
           <div className="flex justify-end mt-4"><button onClick={() => setImportReport(null)} className="px-4 py-2 bg-[#E02843] hover:bg-[#B81E36] text-white">OK</button></div>
         </Modal>
       )}
+      {bulkAsk && <BulkImportModal ask={bulkAsk} categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setBulkAsk(null)} onConfirm={(v) => finishBulkImport(bulkAsk.items, v)} />}
       {importAsk && <ImportAskModal parsed={importAsk} categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setImportAsk(null)} onConfirm={(v) => finishImport(importAsk, v)} />}
       {modal === "new" && <NewTemplateModal categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setModal(null)} onCreate={handleCreate} />}
       {catManager && <CategoryManager onClose={() => { setCatManager(false); reloadCategories(); }} onChanged={reloadCategories} />}
@@ -1253,6 +1283,29 @@ function NewTemplateModal({ categories, onManageCategories, onClose, onCreate })
 }
 
 /** Dialog setelah memilih file impor: nama, kategori, harga (file dslrBooth tidak menyimpan harga/kategori). */
+function BulkImportModal({ ask, categories, onManageCategories, onClose, onConfirm }) {
+  const [category, setCategory] = useState(categories[0]?.id);
+  const [price, setPrice] = useState("25000");
+  useEffect(() => { if (!categories.some((c) => c.id === category) && categories[0]) setCategory(categories[0].id); }, [categories]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Modal title={`Impor ${ask.items.length} template dari folder`} onClose={onClose} width="w-[520px]">
+      <p className="text-[13px] text-[#262A38] mb-2">Template dslrBooth tidak membawa harga dan kategori. Isi satu kali di bawah (berlaku untuk semuanya); harga tiap template bisa diubah lagi sesudahnya.</p>
+      <ul className="text-[12px] text-[#55606E] max-h-40 overflow-auto border border-[#E3E8EE] p-2 mb-3 list-disc pl-5">
+        {ask.items.map((t, i) => <li key={i}>{t.meta.name} <span className="text-[#8A94A2]">({t.meta.canvasWidth}×{t.meta.canvasHeight}, {t.layers.length} layer)</span></li>)}
+      </ul>
+      {ask.errors.length > 0 && <p className="text-[12px] text-[#B81E36] mb-2">Dilewati: {ask.errors.join("; ")}</p>}
+      <div className="flex flex-col gap-3">
+        <Field label="Kategori"><CategorySelect value={category} categories={categories} onManage={onManageCategories} onChange={setCategory} /></Field>
+        <Field label="Harga (Rp)"><input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} /></Field>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="px-4 py-2 border border-[#C7D0DA] text-[13px]">Batal</button>
+        <button onClick={() => onConfirm({ category, price: Math.max(0, Math.round(Number(price) || 0)) })} className="px-4 py-2 bg-[#E02843] hover:bg-[#B81E36] text-white text-[13px] font-semibold">Impor semua</button>
+      </div>
+    </Modal>
+  );
+}
+
 function ImportAskModal({ parsed, categories, onManageCategories, onClose, onConfirm }) {
   const { meta, layers } = parsed;
   const [name, setName] = useState(meta.name || "");

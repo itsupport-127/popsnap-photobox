@@ -233,8 +233,10 @@ function mount(app, { settingsStore }) {
             else if (!smallSince) smallSince = Date.now();
           }
           if (capturing > 0) smallSince = 0;
-          else if (typeof b.waitFrame === "function") await b.waitFrame(100);
-          else await wait(6);
+          // WAJIB selalu ada await bila tidak ada frame baru. (Bug: saat jepret, `capturing > 0` melewati semua await -> loop sinkron tanpa henti
+          // memblokir seluruh backend, jepretan tidak pernah selesai dan layar "macet" di foto/kilatan.)
+          if (!f) { if (typeof b.waitFrame === "function") await b.waitFrame(100); else await wait(6); }
+          else await wait(0);
           // Pemantau macet (mis. Nikon menolak live view lagi setelah jepret, atau kabel/driver tersendat sesaat)
           const ref = Math.max(b.lastFrameAt || 0, startedAt, captureEndedAt, lastRecover);
           if (capturing === 0 && Date.now() - ref > STALL_MS && Date.now() - lastRecover > STALL_MS) {

@@ -201,8 +201,15 @@ export default function useCamera(orientation = "portrait", opts = {}) {
 
   async function capture() {
     if (useDslr) { // foto FULL RESOLUSI dari DSLR lewat backend (digiCamControl)
-      const res = await fetch(`${API_BASE}/api/camera/dslr/capture`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
+      // Batas waktu: kalau backend / kamera tidak menjawab, layar tidak boleh tertahan selamanya di kilatan / foto (kegagalan -> kembali ke live view)
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 50000);
+      let res, data;
+      try {
+        res = await fetch(`${API_BASE}/api/camera/dslr/capture`, { method: "POST", signal: ac.signal });
+        data = await res.json().catch(() => ({}));
+      } catch (e) { throw new Error(e?.name === "AbortError" ? "Kamera tidak menjawab (timeout). Coba lagi." : e.message); }
+      finally { clearTimeout(to); }
       if (!res.ok || !data.image) throw new Error(data.error || "Gagal jepret dari kamera DSLR.");
       return data.image;
     }

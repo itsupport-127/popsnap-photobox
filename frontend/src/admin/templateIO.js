@@ -249,3 +249,36 @@ export async function printTestCopy(doc) {
   setTimeout(() => iframe.remove(), 60000);
   return dataUrl;
 }
+
+/**
+ * Impor dari FOLDER dslrBooth (mis. Documents\\dslrBooth\\Templates): terima daftar File dari <input webkitdirectory>.
+ * Tiap folder yang berisi template.xml dihitung satu template (jadi boleh memilih satu folder template, atau seluruh folder Templates).
+ * @returns {Promise<Array<{ meta, layers, favorite, report }>>}  template yang gagal dibaca dilaporkan lewat `errors` di properti array.
+ */
+export async function parseDslrFolder(fileList) {
+  const all = Array.from(fileList || []).map((f) => ({ f, path: String(f.webkitRelativePath || f.name).replace(/\\/g, "/") }));
+  const dirOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+  const roots = all.filter((x) => x.path.split("/").pop().toLowerCase() === "template.xml").map((x) => dirOf(x.path));
+  if (!roots.length) throw new Error("Tidak ada template.xml di folder ini. Pilih folder template dslrBooth (atau folder Templates yang berisi beberapa template).");
+  if (roots.length > 60) throw new Error("Terlalu banyak template sekaligus (maks. 60). Pilih folder yang lebih kecil.");
+  const out = []; out.errors = [];
+  for (const root of roots) {
+    const prefix = root ? root + "/" : "";
+    // file milik template ini: di dalam foldernya, tidak termasuk folder template lain yang bersarang di dalamnya
+    const nested = roots.filter((r) => r !== root && r.startsWith(prefix));
+    const files = new Map();
+    let bytesTotal = 0;
+    for (const x of all) {
+      if (!x.path.startsWith(prefix) || nested.some((r) => x.path.startsWith(r + "/"))) continue;
+      if (!/\.(xml|png|jpe?g)$/i.test(x.path)) continue; // yang dibutuhkan hanya template.xml dan gambar
+      bytesTotal += x.f.size; if (bytesTotal > 200 * 1024 * 1024) throw new Error(`Template "${root.split("/").pop()}" terlalu besar (> 200 MB).`);
+      files.set(x.path.slice(prefix.length), new Uint8Array(await x.f.arrayBuffer()));
+    }
+    try {
+      const parsed = await importDslrTemplate(files);
+      const clean = sanitizeImported({ template: parsed.meta, layers: parsed.layers });
+      out.push({ ...clean, favorite: parsed.favorite, report: parsed.report });
+    } catch (e) { out.errors.push(`${root.split("/").pop() || "(folder)"}: ${e.message}`); }
+  }
+  return out;
+}
