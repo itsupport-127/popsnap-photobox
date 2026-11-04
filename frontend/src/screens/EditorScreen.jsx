@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { ChevronLeft, Trash2, ZoomIn } from "lucide-react";
 import PhotoAdjustModal from "../components/PhotoAdjustModal";
+import SlotGestureLayer from "../components/SlotGestureLayer";
 import { LayerContent, LayerBox, containerStyle } from "../components/TemplatePreview";
 import SesiDecor from "../components/SesiDecor";
 import StickerStep, { StickerStatic } from "../components/StickerStep";
@@ -191,12 +192,15 @@ export default function EditorScreen({ session, dispatch }) {
               );
             })}
 
-            {/* Langkah 2: ketuk foto di bingkai = buka Zoom / Geser */}
+            {/* Langkah 2: cubit / geser foto di bingkai = zoom langsung; ketuk = buka Zoom / Geser */}
             {phase === "style" && plan.slots.map((layer) => {
               const idx = plan.indexByLayer.get(layer.id);
               return chosen[idx] != null && (
-                <div key={`adj-${layer.id}`} role="button" aria-label={`Zoom / geser foto ${idx + 1}`} onClick={() => setAdjSlot(idx)}
-                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, cursor: "pointer", zIndex: 5 }} />
+                <SlotGestureLayer key={`adj-${layer.id}`} label={`Zoom / geser foto ${idx + 1}`} url={session.shots[chosen[idx]]}
+                  adj={session.editorState.adjust?.[idx]}
+                  onChange={(adj) => dispatch({ type: "SET_PHOTO_ADJUST", payload: { slot: idx, adj } })}
+                  onTap={() => setAdjSlot(idx)}
+                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, zIndex: 5 }} />
               );
             })}
 

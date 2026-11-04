@@ -193,7 +193,8 @@ export async function createAnimatedComposer({ canvasWidth, canvasHeight, layers
   const lutF = getLutFilter(editorState.filter);
   if (lutF) { try { lut = await loadLut(lutF.url, lutF.size); } catch { lut = null; } }
 
-  const adjFor = (layer) => editorState.adjust?.[plan.indexByLayer.get(layer.id)];
+  // Live / GIF / boomerang SELALU tanpa zoom-geser template: gerakannya apa adanya, hanya foto diam akhir yang di-zoom.
+  const adjFor = () => null;
   async function render(slotFrames) {
     octx.setTransform(1, 0, 0, 1, 0, 0);
     octx.globalAlpha = 1;
