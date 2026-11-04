@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { NumInput } from "../editorKit";
 import { Btn, Card, Notice } from "../ui";
 import { Check, Range, Row, Select } from "./controls";
+import { DEFAULT_FILTERS } from "../../utils/filters";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const RES_LABEL = ["640×480 · frame rate tertinggi", "1280×720 (HD)", "1920×1080 (Full HD)", "3840×2160 (4K) · kualitas tertinggi"];
@@ -178,6 +179,9 @@ export default function SettingsCamera({ s, set, only }) {
             <span className="text-[12px] text-[#55606E]">Saturasi</span><div className="w-20"><NumInput value={lv.saturation ?? 100} min={0} onCommit={(v) => set(["camera", "liveView", "saturation"], Math.round(Math.min(200, Math.max(0, v))))} /></div>
             <span className="text-[12px] text-[#55606E]">Hangat (-30…30)</span><div className="w-20"><NumInput value={lv.warmth ?? 0} min={-30} onCommit={(v) => set(["camera", "liveView", "warmth"], Math.round(Math.min(30, Math.max(-30, v))))} /></div>
           </div>
+        </Row>
+        <Row label="Filter live view" hint="Hanya tampilan live view (foto tidak berubah). Pilih dari daftar di Pengaturan > Filter; filter LUT (.cube) tidak tersedia di sini. Pilih &quot;Tanpa filter&quot; untuk mematikan.">
+          <Select value={lv.filterId || ""} onChange={(v) => set(["camera", "liveView", "filterId"], v)} options={[["", "Tanpa filter"], ...(s.editor?.filters ?? DEFAULT_FILTERS).filter((f) => f.enabled !== false && !f.lut?.url).map((f) => [f.id, f.label])]} className="max-w-xs" />
         </Row>
         <Row label="Samakan dengan foto"><Check checked={lv.autoBright !== false} onChange={(v) => set(["camera", "liveView", "autoBright"], v)} label="Otomatis cocokkan kecerahan live view dengan hasil jepret" hint="Dihitung dari perbandingan foto dengan live view tiap kali jepret (berlaku untuk semua kamera, termasuk yang memakai flash/strobo). Makin sering jepret makin pas." /></Row>
         <Row label="Auto Exposure (Canon/Nikon)"><div className="flex items-center gap-3 flex-wrap"><Check checked={lv.canonAutoExposure !== false} onChange={(v) => set(["camera", "liveView", "canonAutoExposure"], v)} label="Terangkan live view di kamera (seperti Canon Auto Exposure di dslrBooth)" /><div className="w-20"><NumInput value={lv.canonBoost ?? 3} min={0} onCommit={(v) => set(["camera", "liveView", "canonBoost"], Math.round(Math.min(6, v)))} /></div><span className="text-[12px] text-[#55606E]">stop (0–6; 3 = 8x lebih terang)</span></div><div className="text-[12px] text-[#55606E] mt-1">Catatan: menaikkan ISO membuat live view berbintik. Kalau bisa, tambah cahaya studio dan matikan opsi ini. Selama live view, kamera menaikkan ISO / memperlambat shutter sementara supaya preview terang walau setelan foto untuk flash. Sebelum jepret setelan asli kamera dikembalikan otomatis, jadi hasil foto tidak berubah. Canon: mode Manual (M), ISO angka (bukan Auto); Nikon: hanya ISO yang dinaikkan (maks 6400), jadi pakai 2–3 stop. Perlu build ulang popsnap_canon_bridge.exe / popsnap_nikon_bridge.exe.</div></Row>

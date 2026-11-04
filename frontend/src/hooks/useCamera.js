@@ -85,7 +85,9 @@ export default function useCamera(orientation = "portrait", opts = {}) {
     return () => {
       cancelled = true;
       setPreviewFrame(null);
-      fetch(`${API_BASE}/api/camera/dslr/liveview/stop`, { method: "POST" }).catch(() => {});
+      // Jangan langsung mematikan live view: layar berikutnya / sesi baru biasanya membukanya lagi dalam beberapa detik,
+      // dan siklus mati-hidup kamera membuat layar hitam. Server menunggu 2 menit; kalau ada aliran baru, tidak jadi dimatikan.
+      fetch(`${API_BASE}/api/camera/dslr/liveview/stop?keep=120`, { method: "POST" }).catch(() => {});
     };
   }, [useDslr]);
 

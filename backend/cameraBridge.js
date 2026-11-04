@@ -205,6 +205,12 @@ function mount(app, { settingsStore }) {
     const startedAt = Date.now();
     // Status "live view menyala" bisa basi (kamera sempat dimatikan layar lain / setelah Setelan Kamera): paksa kirim START
     if (b && Date.now() - (b.lastFrameAt || 0) > 2000) b.lvOn = false;
+    // Frame HITAM padahal frame terus datang (kamera kembali ke mode tanpa live view / eksposur gelap setelah jepret): JPEG hitam sangat kecil.
+    // Pemantau "macet" di bawah tidak menangkapnya karena frame tetap masuk. Kecil terus > BLACK_MS -> hidupkan ulang live view.
+    // Setelah 3 kali berturut-turut tanpa hasil (ruangan memang gelap) berhenti mencoba 30 detik supaya tidak berkedip terus.
+    const BLACK_ABS = 4000, BLACK_MS = 4500;
+    let sizeMax = 0, smallSince = 0, blackRuns = 0, blackPause = 0;
+    const isSmall = (n) => n < BLACK_ABS || (sizeMax > 15000 && n < 8000 && n < sizeMax * 0.25);
     let lastSent = 0;
     const put = (buf) => {
       const now = Date.now();
@@ -221,7 +227,12 @@ function mount(app, { settingsStore }) {
         if (b) {
           if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; b.send("LIVEVIEW_START"); }
           const f = b.readFrameIfNew();
-          if (f) put(f);
+          if (f) {
+            put(f);
+            if (!isSmall(f.length)) { sizeMax = Math.max(sizeMax * 0.995, f.length); smallSince = 0; blackRuns = 0; }
+            else if (!smallSince) smallSince = Date.now();
+          }
+          if (capturing > 0) smallSince = 0;
           else if (typeof b.waitFrame === "function") await b.waitFrame(100);
           else await wait(6);
           // Pemantau macet (mis. Nikon menolak live view lagi setelah jepret, atau kabel/driver tersendat sesaat)
@@ -229,6 +240,13 @@ function mount(app, { settingsStore }) {
           if (capturing === 0 && Date.now() - ref > STALL_MS && Date.now() - lastRecover > STALL_MS) {
             lastRecover = Date.now(); recoveries++;
             log(`live view macet ${Math.round((Date.now() - ref) / 100) / 10} dtk tanpa frame -> hidupkan ulang (#${recoveries})`);
+            b.send("LIVEVIEW_STOP"); await wait(500); if (!alive) break; b.send("LIVEVIEW_START");
+          }
+          if (smallSince && capturing === 0 && Date.now() - smallSince > BLACK_MS && Date.now() > blackPause) {
+            blackRuns++; recoveries++;
+            log(`live view hitam ${Math.round((Date.now() - smallSince) / 100) / 10} dtk (frame ${b.frame ? b.frame.length : "?"} byte) -> hidupkan ulang (#${recoveries}, percobaan ${blackRuns}/3)`);
+            smallSince = Date.now();
+            if (blackRuns >= 3) { blackPause = Date.now() + 30000; blackRuns = 0; }
             b.send("LIVEVIEW_STOP"); await wait(500); if (!alive) break; b.send("LIVEVIEW_START");
           }
         } else {
@@ -244,10 +262,14 @@ function mount(app, { settingsStore }) {
 
   app.post("/api/camera/dslr/liveview/stop", async (req, res) => {
     const c0 = cfg();
+    // Antar sesi live view tidak langsung dimatikan: layar berikutnya biasanya membukanya lagi dalam hitungan detik, dan siklus
+    // mati-hidup kamera (terutama Nikon / Canon setelah jepret) adalah penyebab layar hitam. ?keep=<detik> (maks 10 menit) = lama menunggu;
+    // kalau tidak ada aliran baru sampai waktunya, baru dimatikan (kamera tidak terus menyala).
+    const holdMs = Math.max(1500, Math.min(600, Number(req.query.keep) || 0) * 1000);
     if (c0.driver === "digicam") {
       // Sama seperti jalur SDK: "stop" dari Pengaturan Kamera bisa tiba SESUDAH layar booth membuka live view -> layar hitam.
       // Tunda; matikan hanya bila tak ada aliran yang dipakai dan tidak sedang jepret.
-      setTimeout(() => { if (clients === 0 && capturing === 0) { lvOn = false; dcc("/?CMD=LiveViewWnd_Hide").catch(() => {}); } }, 1500);
+      setTimeout(() => { if (clients === 0 && capturing === 0) { lvOn = false; dcc("/?CMD=LiveViewWnd_Hide").catch(() => {}); } }, holdMs);
       return res.json({ ok: true });
     }
     lvOn = false;
@@ -255,7 +277,7 @@ function mount(app, { settingsStore }) {
       // Keluar dari Setelan Kamera / layar sesi mengirim "stop" yang bisa tiba SESUDAH layar lain membuka live view -> kamera
       // dimatikan dan layar hitam. Tunda sebentar; jalankan hanya bila tak ada aliran lain yang sedang dipakai dan tidak sedang jepret.
       const b0 = sdkBridge.get(c0.driver, c0.model);
-      setTimeout(() => { if (clients === 0 && capturing === 0) b0.send("LIVEVIEW_STOP"); }, 1500);
+      setTimeout(() => { if (clients === 0 && capturing === 0) b0.send("LIVEVIEW_STOP"); }, holdMs);
       return res.json({ ok: true });
     }
     await dcc("/?CMD=LiveViewWnd_Hide").catch(() => {});

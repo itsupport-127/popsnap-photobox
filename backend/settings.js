@@ -63,7 +63,7 @@ const DEFAULTS = {
     audioDeviceId: "",
     dslr: { host: "http://localhost:5513", camera: "", driver: "digicam", model: "", zModel: "" }, // DSLR via digiCamControl (web server lokal)
     orientation: "auto", // auto = ikut gambar kamera | landscape | portrait (kamera dipasang tegak: gambar otomatis diputar 90°)
-    liveView: { enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0 },
+    liveView: { enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
   },
 
   // ---- EDITOR: filter foto yang bisa ditambah admin (No Filter selalu ada di urutan pertama) ----
@@ -354,6 +354,8 @@ function update(patch) {
         contrast: num(lv.contrast, 50, 160, cc.liveView.contrast ?? 100),
         saturation: num(lv.saturation, 0, 200, cc.liveView.saturation ?? 100),
         warmth: num(lv.warmth, -30, 30, cc.liveView.warmth ?? 0),
+        // Filter kreatif untuk tampilan live view saja (id dari Pengaturan > Filter; "" = tanpa filter). Hanya filter berparameter, bukan LUT.
+        filterId: (() => { const v = typeof lv.filterId === "string" ? lv.filterId.trim() : undefined; return v !== undefined && /^[\w.\-]{0,40}$/.test(v) ? v : (cc.liveView.filterId ?? ""); })(),
       },
     };
   }

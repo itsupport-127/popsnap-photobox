@@ -1,6 +1,7 @@
 import React, { useId, useState } from "react";
 import appConfig from "../config/appConfig";
 import { effectiveRotation } from "../utils/cameraRotation";
+import { filterCss } from "../utils/filters";
 
 /**
  * Tampilan kamera (live view). Mengikuti pengaturan Admin > Kamera:
@@ -24,6 +25,9 @@ export default function LiveView({ camera, aspect, crop = true, fill = false, on
   const ct = (lv.contrast ?? 100) / 100, sat = (lv.saturation ?? 100) / 100, wm = (lv.warmth ?? 0) / 100;
   const useColor = Math.abs(ct - 1) > 0.01 || Math.abs(sat - 1) > 0.01 || Math.abs(wm) > 0.005;
   const useFilter = useGamma || useColor;
+  // Filter kreatif pilihan admin (Pengaturan > Kamera): hanya tampilan live view. Filter LUT tidak dipakai di sini (butuh canvas per frame) -> "none".
+  const lookCss = lv.filterId ? filterCss(lv.filterId) : "none";
+  const cssFilter = [useFilter ? `url(#${gid})` : "", lookCss !== "none" ? lookCss : ""].filter(Boolean).join(" ") || undefined;
   const cInt = ((1 - ct) / 2).toFixed(4), rS = (ct * (1 + wm)).toFixed(4), bS = (ct * (1 - wm)).toFixed(4), gS = ct.toFixed(4);
   const rot = effectiveRotation(lv.rotation || 0, cfg.orientation, dims.w, dims.h);
   const sideways = rot === 90 || rot === 270;
@@ -43,7 +47,7 @@ export default function LiveView({ camera, aspect, crop = true, fill = false, on
     width: sideways ? "100cqh" : "100cqw", height: sideways ? "100cqw" : "100cqh",
     transform: `translate(-50%, -50%) rotate(${rot}deg) scaleX(${(mirror ?? lv.mirror) ? -1 : 1})`,
     maxWidth: "none", maxHeight: "none", // Tailwind membatasi video/img ke 100%; saat dirotasi 90° lebar elemen = tinggi kotak, jadi batas itu harus dicabut
-    objectFit: crop ? "cover" : "contain", opacity: lv.enabled ? 1 : 0, filter: useFilter ? `url(#${gid})` : undefined, willChange: lv.asIs === true ? undefined : "transform", imageRendering: "auto", // (mode "apa adanya": tanpa will-change supaya browser memperkecil gambar dengan kualitas tinggi, bukan bilinear cepat yang bergerigi/pecah) layer sendiri: frame baru tidak memaksa lukis ulang elemen lain
+    objectFit: crop ? "cover" : "contain", opacity: lv.enabled ? 1 : 0, filter: cssFilter, willChange: lv.asIs === true ? undefined : "transform", imageRendering: "auto", // (mode "apa adanya": tanpa will-change supaya browser memperkecil gambar dengan kualitas tinggi, bukan bilinear cepat yang bergerigi/pecah) layer sendiri: frame baru tidak memaksa lukis ulang elemen lain
   };
   // Area potong: persegi panjang berrasio `guide`, di tengah gambar kamera yang tampil utuh (sama dengan pemotongan saat foto dimasukkan ke slot)
   const A = dims.w && dims.h ? (sideways ? dims.h / dims.w : dims.w / dims.h) : 0;
