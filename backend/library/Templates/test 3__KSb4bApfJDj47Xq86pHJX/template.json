@@ -1,0 +1,24 @@
+{
+  "format": "popsnap-library-template",
+  "version": 1,
+  "savedAt": "2026-11-04T09:01:45.541Z",
+  "row": {
+    "id": "KSb4bApfJDj47Xq86pHJX",
+    "name": "test 3",
+    "category": "strip2",
+    "background_url": "",
+    "canvas_width": 1200,
+    "canvas_height": 1800,
+    "slots": "[]",
+    "created_at": "2026-10-09 03:23:57",
+    "price": 25000,
+    "foreground_url": null,
+    "layers": "[{\"visible\":true,\"locked\":false,\"id\":\"pDUw6Anfd4BOC_Vm7U7f9\",\"type\":\"image\",\"name\":\"Background\",\"imageUrl\":\"/uploads/2f425c0f5206e4309a5460d3cf12182d.png\",\"xPct\":0,\"yPct\":0,\"widthPct\":100,\"heightPct\":100,\"rotation\":0},{\"id\":\"d71a5385-879d-4d21-bdec-b4225409368f\",\"xPct\":74.25677743100178,\"yPct\":25.961705831157524,\"widthPct\":23.55057829998164,\"heightPct\":25.752828546562228,\"rotation\":0,\"visible\":true,\"locked\":false,\"type\":\"photo-slot\",\"shapeKind\":\"rectangle\",\"photoOrder\":1,\"name\":\"Photo 1\"}]",
+    "background_color": "#ffffff",
+    "paper_size": "4x6",
+    "orientation": "portrait",
+    "dpi": 300,
+    "favorite": 1,
+    "animated": 0
+  }
+}

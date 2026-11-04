@@ -1,0 +1,24 @@
+{
+  "format": "popsnap-library-template",
+  "version": 1,
+  "savedAt": "2026-11-04T09:01:45.534Z",
+  "row": {
+    "id": "ZMRmMuaSWLkFmFXBQeGyB",
+    "name": "test4",
+    "category": "strip2",
+    "background_url": "",
+    "canvas_width": 1200,
+    "canvas_height": 1800,
+    "slots": "[]",
+    "created_at": "2026-10-08 07:29:16",
+    "price": 25000,
+    "foreground_url": null,
+    "layers": "[{\"visible\":true,\"locked\":false,\"id\":\"c185a1a7-4871-4e8c-8a4f-3c7092b83e55\",\"xPct\":0,\"yPct\":0.35931453841901373,\"widthPct\":100,\"heightPct\":99.28137092316197,\"rotation\":0,\"type\":\"image\",\"imageUrl\":\"/uploads/e765ae2d393031d9e832f48657cd75fd.png\",\"lockAspect\":false,\"fileName\":\"Template passport-04.png\",\"name\":\"Template passport-04\"},{\"id\":\"d56fe524-3d17-48b7-a373-d6f4e58161ee\",\"xPct\":3.563429410684781,\"yPct\":2.7241079199303737,\"widthPct\":19.242396426167307,\"heightPct\":20.00870322019147,\"rotation\":0,\"visible\":true,\"locked\":false,\"type\":\"photo-slot\",\"shapeKind\":\"rectangle\",\"photoOrder\":1,\"name\":\"Photo 1\"}]",
+    "background_color": "#ffffff",
+    "paper_size": "4x6",
+    "orientation": "portrait",
+    "dpi": 300,
+    "favorite": 1,
+    "animated": 0
+  }
+}

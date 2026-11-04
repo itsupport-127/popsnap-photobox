@@ -1,0 +1,38 @@
+{
+  "format": "popsnap-library-categories",
+  "version": 1,
+  "rows": [
+    {
+      "id": "strip2",
+      "label": "Photo Strips",
+      "sort": 0,
+      "icon": null,
+      "icon_white": 1,
+      "subtitle": "you will get 2× photo strips"
+    },
+    {
+      "id": "print4r",
+      "label": "4R",
+      "sort": 1,
+      "icon": null,
+      "icon_white": 1,
+      "subtitle": "you will get 1x 4R"
+    },
+    {
+      "id": "custom",
+      "label": "Custom",
+      "sort": 2,
+      "icon": null,
+      "icon_white": 1,
+      "subtitle": "you will get 1x custom template"
+    },
+    {
+      "id": "personalize",
+      "label": "Celebration Package",
+      "sort": 3,
+      "icon": null,
+      "icon_white": 1,
+      "subtitle": "you will get 1x celebration package template"
+    }
+  ]
+}

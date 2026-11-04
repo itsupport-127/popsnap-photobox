@@ -1,4 +1,5 @@
 import { photoSlotPlan } from "./templatePhotos";
+import { ADJ_MAX } from "./photoAdjust";
 import { filterCss, getLutFilter } from "./filters";
 import { applyLut, loadLut } from "./lut";
 
@@ -44,7 +45,8 @@ export async function composeImage({ canvasWidth, canvasHeight, layers = [], pho
     const photo = photos[plan.indexByLayer.get(layer.id)];
     return photo ? loadImage(photo) : null;
   };
-  for (const layer of layers) await drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, photoFor);
+  const adjFor = (layer) => editorState.adjust?.[plan.indexByLayer.get(layer.id)];
+  for (const layer of layers) await drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, photoFor, adjFor);
   await drawStickers(ctx, editorState, canvasWidth, canvasHeight);
 
   return canvas.toDataURL("image/png");
@@ -52,7 +54,7 @@ export async function composeImage({ canvasWidth, canvasHeight, layers = [], pho
 
 
 /** Render SATU layer (gambar / slot foto / shape / teks) ke ctx. `photoFor(layer)` -> gambar/canvas untuk slot foto (atau null). */
-async function drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, photoFor) {
+async function drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, photoFor, adjFor) {
   if (layer.visible === false) return; // layer disembunyikan (ikon mata) di Template Editor
   const x = (layer.xPct / 100) * canvasWidth;
   const y = (layer.yPct / 100) * canvasHeight;
@@ -94,7 +96,7 @@ async function drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, pho
         if (editorState.filter && editorState.filter !== "none") ctx.filter = filterCss(editorState.filter);
         buildShapePath(ctx, layer.shapeKind, -w / 2, -h / 2, w, h);
         ctx.clip();
-        drawImageCover(ctx, img, -w / 2, -h / 2, w, h);
+        drawImageCover(ctx, img, -w / 2, -h / 2, w, h, adjFor ? adjFor(layer) : null, !!editorState.mirror);
         ctx.filter = "none"; // filter foto tidak boleh ikut mewarnai garis tepi
         if (sw > 0) strokeInside(ctx, layer.shapeKind, w, h, sw, layer.strokeColor);
       }
@@ -191,6 +193,7 @@ export async function createAnimatedComposer({ canvasWidth, canvasHeight, layers
   const lutF = getLutFilter(editorState.filter);
   if (lutF) { try { lut = await loadLut(lutF.url, lutF.size); } catch { lut = null; } }
 
+  const adjFor = (layer) => editorState.adjust?.[plan.indexByLayer.get(layer.id)];
   async function render(slotFrames) {
     octx.setTransform(1, 0, 0, 1, 0, 0);
     octx.globalAlpha = 1;
@@ -212,7 +215,7 @@ export async function createAnimatedComposer({ canvasWidth, canvasHeight, layers
       if (p.canvas) { octx.drawImage(p.canvas, 0, 0); continue; }
       octx.save();
       octx.scale(sx, sy);
-      await drawLayer(octx, p.slot, canvasWidth, canvasHeight, editorState, photoFor);
+      await drawLayer(octx, p.slot, canvasWidth, canvasHeight, editorState, photoFor, adjFor);
       octx.restore();
     }
     octx.drawImage(stickers, 0, 0);
@@ -296,7 +299,7 @@ function loadImage(src) {
     img.src = src;
   });
 }
-function drawImageCover(ctx, img, x, y, w, h) {
+function drawImageCover(ctx, img, x, y, w, h, adj = null, mirror = false) {
   const imgRatio = img.width / img.height;
   const boxRatio = w / h;
   let sx, sy, sw, sh;
@@ -311,6 +314,16 @@ function drawImageCover(ctx, img, x, y, w, h) {
     sh = sw / boxRatio;
     sx = 0;
     sy = (img.height - sh) / 2;
+  }
+  // Zoom & geser pilihan tamu (utils/photoAdjust.js): jendela sumber mengecil sebesar zoom, lalu digeser berlawanan arah dengan foto.
+  // Kanvas sudah dicerminkan (ctx.scale(-1,1)) bila "Mirror" aktif, jadi pergeseran horizontal dibalik supaya tetap searah yang dilihat tamu.
+  if (adj && (adj.z > 1.001 || Math.abs(adj.tx) > 0.001 || Math.abs(adj.ty) > 0.001)) {
+    const z = Math.min(ADJ_MAX, Math.max(1, Number(adj.z) || 1));
+    const cx = sx + sw / 2, cy = sy + sh / 2, zw = sw / z, zh = sh / z;
+    const tx = (mirror ? -1 : 1) * (Number(adj.tx) || 0), ty = Number(adj.ty) || 0;
+    const nx = Math.min(img.width - zw, Math.max(0, cx - zw / 2 - tx * zw));
+    const ny = Math.min(img.height - zh, Math.max(0, cy - zh / 2 - ty * zh));
+    sx = nx; sy = ny; sw = zw; sh = zh;
   }
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }

@@ -56,6 +56,7 @@ export function createInitialSession() {
       filter: "none",
       mirror: false,
       stickers: [],
+      adjust: {},            // zoom & geser foto per slot: { [nomorSlot]: { z, tx, ty } } (utils/photoAdjust.js)
     },
     orientation: "portrait", // portrait | landscape
     sessionId: null,
@@ -88,6 +89,15 @@ function enterFlow(s) {
 // Reducer-style transition function.
 // action: { type: string, payload?: any }
 /** Daftar slot foto template (panjang = jumlah nomor foto berbeda), diisi null untuk slot kosong. */
+/** Foto di slot diganti / dilepas / ditukar -> zoom & geser slot itu tidak berlaku lagi. */
+function dropAdjust(session, ...slots) {
+  const cur = session.editorState.adjust;
+  if (!cur || !slots.some((n) => cur[n])) return session.editorState;
+  const adjust = { ...cur };
+  for (const n of slots) delete adjust[n];
+  return { ...session.editorState, adjust };
+}
+
 function templateSlots(session) {
   const n = Math.max(session.selectedTemplate?.layers ? photoSlotPlan(session.selectedTemplate.layers).count : 1, 1);
   return Array.from({ length: n }, (_, i) => session.photosForTemplate[i] ?? null);
@@ -241,11 +251,11 @@ export function sessionReducer(session, action) {
       // Foto sudah ada di bingkai -> dilepas; belum -> mengisi slot kosong PERTAMA (sama seperti ketuk di daftar)
       const arr = templateSlots(session);
       const at = arr.indexOf(action.payload.shotIndex);
-      if (at >= 0) { arr[at] = null; return { ...session, photosForTemplate: arr }; }
+      if (at >= 0) { arr[at] = null; return { ...session, photosForTemplate: arr, editorState: dropAdjust(session, at) }; }
       const free = arr.indexOf(null);
       if (free < 0) return session;
       arr[free] = action.payload.shotIndex;
-      return { ...session, photosForTemplate: arr };
+      return { ...session, photosForTemplate: arr, editorState: dropAdjust(session, free) };
     }
     case "ASSIGN_PHOTO": {
       // Taruh foto di slot tertentu. Slot sudah terisi: foto lamanya kembali ke daftar,
@@ -258,14 +268,22 @@ export function sessionReducer(session, action) {
       const old = arr[slot];
       arr[slot] = shot;
       if (from >= 0) arr[from] = old;
-      return { ...session, photosForTemplate: arr };
+      return { ...session, photosForTemplate: arr, editorState: dropAdjust(session, slot, from) };
     }
     case "REMOVE_PHOTO_FROM_TEMPLATE": {
       // Kosongkan 1 slot (lewat nomor slot, atau lewat indeks foto)
       const arr = templateSlots(session);
       const at = action.payload.slot ?? arr.indexOf(action.payload.shotIndex);
       if (at >= 0 && at < arr.length) arr[at] = null;
-      return { ...session, photosForTemplate: arr };
+      return { ...session, photosForTemplate: arr, editorState: dropAdjust(session, at) };
+    }
+    case "SET_PHOTO_ADJUST": {
+      // payload { slot, adj } — adj null / netral = kembali normal
+      const { slot, adj } = action.payload;
+      const adjust = { ...(session.editorState.adjust ?? {}) };
+      if (!adj || ((adj.z ?? 1) < 1.005 && Math.abs(adj.tx || 0) < 0.002 && Math.abs(adj.ty || 0) < 0.002)) delete adjust[slot];
+      else adjust[slot] = { z: adj.z, tx: adj.tx || 0, ty: adj.ty || 0 };
+      return { ...session, editorState: { ...session.editorState, adjust } };
     }
     case "SET_MIRROR": {
       return { ...session, editorState: { ...session.editorState, mirror: !!action.payload.mirror } };

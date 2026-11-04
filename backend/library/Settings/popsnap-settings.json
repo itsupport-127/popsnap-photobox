@@ -1,0 +1,321 @@
+{
+  "format": "popsnap-library-settings",
+  "version": 1,
+  "savedAt": "2026-11-04T09:01:45.517Z",
+  "settings": {
+    "event": {
+      "name": "POPSNAP",
+      "subtitle": ""
+    },
+    "general": {
+      "modes": {
+        "photo": {
+          "enabled": true,
+          "createGif": true
+        },
+        "gif": {
+          "enabled": false,
+          "price": 0
+        },
+        "boomerang": {
+          "enabled": false,
+          "price": 0
+        },
+        "video": {
+          "enabled": false,
+          "price": 0
+        },
+        "showLabels": true
+      },
+      "kbSeeded": true,
+      "virtualKeyboard": "builtin",
+      "consent": {
+        "enabled": true,
+        "title": "IZIN FOTO",
+        "text": "Hai kak! Boleh fotonya kami bagikan di sosmed atau dipajang di mading toko? Pilih saja, boleh atau tidak sama-sama tidak masalah.",
+        "seconds": 20
+      },
+      "disclaimer": {
+        "enabled": false,
+        "header": "Setuju dengan ketentuan?",
+        "text": "Dengan melanjutkan, saya mengizinkan foto saya diambil dan disimpan oleh penyelenggara untuk dibagikan kepada saya. Jika tidak setuju, sesi akan dibatalkan."
+      },
+      "dataDir": "",
+      "export": {
+        "enabled": true,
+        "dir": "C:\\Users\\PC-001\\Music",
+        "prints": true,
+        "originals": true,
+        "gifs": true,
+        "videos": true
+      }
+    },
+    "printing": {
+      "enabled": true,
+      "main": {
+        "name": "",
+        "scale": 100,
+        "x": 0,
+        "y": 0
+      },
+      "second": {
+        "name": "",
+        "scale": 100,
+        "x": 0,
+        "y": 0
+      },
+      "auto": false,
+      "autoCopies": 1,
+      "showButton": true,
+      "price": 0,
+      "both": false,
+      "autorotate": true,
+      "paper": "auto",
+      "fit": "fill",
+      "limit": {
+        "enabled": false,
+        "perEvent": 5000,
+        "perSession": 3
+      },
+      "copies": 5,
+      "sharpening": "high",
+      "strip2x6": false
+    },
+    "camera": {
+      "mode": "webcam",
+      "autoTrigger": true,
+      "resolution": 2,
+      "videoDeviceId": "",
+      "audioDeviceId": "",
+      "dslr": {
+        "host": "http://127.0.0.1:5513",
+        "camera": "",
+        "driver": "digicam",
+        "model": "",
+        "zModel": ""
+      },
+      "orientation": "auto",
+      "liveView": {
+        "enabled": true,
+        "mirror": true,
+        "rotation": 0,
+        "displayOnStart": false,
+        "guide": true,
+        "fitTemplate": false,
+        "frameMode": "camera",
+        "brightness": 100,
+        "autoBright": true,
+        "canonAutoExposure": true,
+        "canonBoost": 3,
+        "asIs": false,
+        "contrast": 100,
+        "saturation": 100,
+        "warmth": 0,
+        "filterId": ""
+      }
+    },
+    "editor": {
+      "filters": [
+        {
+          "id": "bw",
+          "label": "Black & White",
+          "enabled": true,
+          "p": {
+            "brightness": 100,
+            "contrast": 105,
+            "saturate": 100,
+            "grayscale": 100,
+            "sepia": 0,
+            "hue": 0,
+            "blur": 0
+          }
+        },
+        {
+          "id": "f1",
+          "label": "Filter 1",
+          "enabled": true,
+          "p": {
+            "brightness": 105,
+            "contrast": 100,
+            "saturate": 115,
+            "grayscale": 0,
+            "sepia": 35,
+            "hue": 0,
+            "blur": 0
+          }
+        },
+        {
+          "id": "f2",
+          "label": "Filter 2",
+          "enabled": true,
+          "p": {
+            "brightness": 100,
+            "contrast": 105,
+            "saturate": 125,
+            "grayscale": 0,
+            "sepia": 0,
+            "hue": -8,
+            "blur": 0
+          }
+        },
+        {
+          "id": "f3",
+          "label": "Filter 3",
+          "enabled": true,
+          "p": {
+            "brightness": 90,
+            "contrast": 125,
+            "saturate": 120,
+            "grayscale": 0,
+            "sepia": 0,
+            "hue": 0,
+            "blur": 0
+          }
+        },
+        {
+          "id": "f4",
+          "label": "Filter 4",
+          "enabled": true,
+          "p": {
+            "brightness": 110,
+            "contrast": 90,
+            "saturate": 85,
+            "grayscale": 0,
+            "sepia": 0,
+            "hue": 0,
+            "blur": 0
+          }
+        }
+      ]
+    },
+    "display": {
+      "autoFullscreen": true,
+      "startFullscreen": true,
+      "colors": {
+        "background": "#181B23",
+        "primary": "#E02843",
+        "buttonText": "#FFFFFF",
+        "secondary": "#4082AE"
+      },
+      "startScreen": {
+        "image": "",
+        "stretch": "cover",
+        "templateChoice": "favorites",
+        "singleTemplateId": "",
+        "unlockOpacity": 30,
+        "triggerKeys": true
+      },
+      "capture": {
+        "manualScope": "all",
+        "captureHint": "pulse",
+        "manualTrigger": true,
+        "autoSequence": true,
+        "countdownFirst": 5,
+        "countdownOthers": 5,
+        "displayPhotoSeconds": 2,
+        "countdownColor": "#FFFFFF",
+        "cropLiveview": true,
+        "hideCancel": false,
+        "showThumbnails": true,
+        "thumbnailLocation": "bottom",
+        "sayCheeseImage": ""
+      },
+      "sharing": {
+        "mode": "qr",
+        "hideDone": false,
+        "iconsLocation": "right",
+        "showLabels": true,
+        "offline": "auto",
+        "offlineText": "Koneksi internet sedang terputus. Foto Anda akan dikirim oleh tim kami lewat WhatsApp.",
+        "thanksOn": true,
+        "thanksLang": "id",
+        "thanksTitle": "Terima kasih telah berfoto di Popsnap",
+        "thanksText": "Semoga harimu menyenangkan. Sampai jumpa kembali.",
+        "thanksTitleEn": "Thank you for taking photos at Popsnap",
+        "thanksTextEn": "Have a great day. See you again soon.",
+        "offlineTextEn": "Internet connection is down. Your photos will be sent to you via WhatsApp."
+      },
+      "lock": {
+        "position": "top-right",
+        "style": "fade",
+        "opacity": 30,
+        "hideAfterSeconds": 4,
+        "zoneSize": 96
+      },
+      "reminder": {
+        "enabled": true,
+        "seconds": 8,
+        "skippable": true,
+        "backgroundImage": "",
+        "logoImage": "",
+        "panelColor": "#FDB62B",
+        "textColor": "#111111",
+        "items": [
+          {
+            "text": "You will get {shots} snapshots per session",
+            "sub": "Kamu mendapatkan {shots} kesempatan foto dalam 1 sesi"
+          },
+          {
+            "text": "You can have maximum {retakes} retake per session",
+            "sub": "Kamu memiliki kesempatan {retakes}x retake untuk keseluruhan sesi"
+          },
+          {
+            "text": "Countdown for the first snapshot will start after this",
+            "sub": "Countdown untuk take pertama langsung dimulai setelah ini"
+          }
+        ]
+      }
+    },
+    "gif": {
+      "frames": 4,
+      "frameDelayMs": 600,
+      "width": 600
+    },
+    "result": {
+      "live": true,
+      "gif": true,
+      "defaultView": "photo",
+      "gifStyle": "template",
+      "gifHoldMs": 1800,
+      "loadingOn": true,
+      "loadingMinSec": 3,
+      "loadingMaxSec": 20
+    },
+    "animated": {
+      "enabled": true,
+      "secondsBefore": 1.5,
+      "secondsAfter": 2,
+      "fps": 10,
+      "loop": "pingpong",
+      "gifWidth": 480,
+      "templateMp4": true,
+      "rawClips": true,
+      "rawFormat": "mp4",
+      "clipWidth": 640,
+      "liveBrightness": 100,
+      "liveContrast": 100,
+      "liveSharpness": 0,
+      "downloadPage": true
+    },
+    "boomerang": {
+      "seconds": 3,
+      "fps": 10,
+      "width": 480
+    },
+    "video": {
+      "seconds": 15,
+      "audio": false
+    },
+    "session": {
+      "timers": {
+        "payment": 45,
+        "photoSession": 240,
+        "photoSessionExtend": 60,
+        "editor": 180,
+        "downloadQr": 30
+      },
+      "totalShots": 8,
+      "maxRetakes": 5
+    }
+  }
+}

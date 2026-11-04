@@ -78,7 +78,7 @@ function radiusFor(layer, canvasWidth, canvasHeight) {
  * Isi 1 layer (memenuhi kotak layer). `photoUrl` opsional: kalau ada, slot foto
  * menampilkan foto itu; kalau tidak, menampilkan placeholder bernomor.
  */
-export function LayerContent({ layer, canvasWidth, canvasHeight, photoUrl, filter, filterId, mirror }) {
+export function LayerContent({ layer, canvasWidth, canvasHeight, photoUrl, filter, filterId, mirror, adjust }) {
   const radius = radiusFor(layer, canvasWidth, canvasHeight);
 
   // Garis tepi (Stroke) untuk gambar & slot foto: digambar DI DALAM kotak layer, di atas isinya
@@ -102,14 +102,21 @@ export function LayerContent({ layer, canvasWidth, canvasHeight, photoUrl, filte
 
   if (layer.type === "photo-slot") {
     if (photoUrl) {
+      const adj = adjust && (adjust.z > 1.001 || Math.abs(adjust.tx || 0) > 0.001 || Math.abs(adjust.ty || 0) > 0.001) ? adjust : null;
+      // Zoom & geser (Editor > Zoom / Geser): lapisan dalam digeser (persen dari ukuran slot) lalu diperbesar, dipotong tepi slot
+      const zoomWrap = (child) => adj ? (
+        <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: radius, pointerEvents: "none" }}>
+          <div style={{ width: "100%", height: "100%", transformOrigin: "center", transform: `translate(${(adj.tx || 0) * 100}%, ${(adj.ty || 0) * 100}%) scale(${adj.z || 1})` }}>{child}</div>
+        </div>
+      ) : child;
       return (
         <>
-          {filterId !== undefined ? (
+          {zoomWrap(filterId !== undefined ? (
             <FilteredImg src={photoUrl} filterId={filterId} mirror={mirror} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: radius, pointerEvents: "none" }} />
           ) : (
             <img src={photoUrl} alt="" draggable={false}
               style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: radius, filter, transform: mirror ? "scaleX(-1)" : undefined, pointerEvents: "none" }} />
-          )}
+          ))}
           {stroke}
         </>
       );

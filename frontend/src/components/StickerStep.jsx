@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Check, X, RotateCw } from "lucide-react";
 import { LayerContent, LayerBox, containerStyle } from "./TemplatePreview";
+import { photoSlotPlan } from "../utils/templatePhotos";
 import SesiDecor from "./SesiDecor";
 import { listStickers } from "../services/stickerService";
 import { trackPointerDrag } from "../utils/dragGesture";
@@ -193,7 +194,7 @@ export default function StickerStep({ session, dispatch, photoAssignment, timerT
                 return (
                   <LayerBox key={layer.id} layer={layer} canvasWidth={cw}>
                     <LayerContent layer={layer} canvasWidth={cw} canvasHeight={ch}
-                      photoUrl={shotIndex !== undefined ? session.shots[shotIndex] : undefined} filterId={filter} mirror={mirror} />
+                      photoUrl={shotIndex !== undefined ? session.shots[shotIndex] : undefined} filterId={filter} mirror={mirror} adjust={session.editorState.adjust?.[photoSlotPlan(layers).indexByLayer.get(layer.id)]} />
                   </LayerBox>
                 );
               })}

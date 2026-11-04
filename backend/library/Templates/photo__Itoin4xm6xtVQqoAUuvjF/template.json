@@ -1,0 +1,24 @@
+{
+  "format": "popsnap-library-template",
+  "version": 1,
+  "savedAt": "2026-11-04T09:01:45.545Z",
+  "row": {
+    "id": "Itoin4xm6xtVQqoAUuvjF",
+    "name": "photo",
+    "category": "custom",
+    "background_url": "",
+    "canvas_width": 1200,
+    "canvas_height": 1800,
+    "slots": "[]",
+    "created_at": "2026-10-14 03:32:41",
+    "price": 25000,
+    "foreground_url": null,
+    "layers": "[{\"id\":\"c25d8e73-aad1-4498-97ad-d7aecc22f570\",\"xPct\":3.612432603869332,\"yPct\":2.9724853405502927,\"widthPct\":20.310815096733272,\"heightPct\":19.494812810103742,\"rotation\":0,\"visible\":true,\"locked\":false,\"type\":\"photo-slot\",\"shapeKind\":\"rectangle\",\"photoOrder\":1,\"name\":\"Photo 1\"},{\"id\":\"9fcab607-efaf-4bc1-8d36-8cce4df329ae\",\"xPct\":0,\"yPct\":0.35931453841901373,\"widthPct\":100,\"heightPct\":99.28137092316197,\"rotation\":0,\"visible\":true,\"locked\":true,\"type\":\"image\",\"imageUrl\":\"/uploads/47aace3ff7459f7632ca374b1cba0604.png\",\"lockAspect\":true,\"fileName\":\"Template passport-04.png\",\"name\":\"Template passport-04\"},{\"id\":\"8540a9af-7f94-45bb-8313-133c064d9729\",\"xPct\":30.985093561687275,\"yPct\":3.213351375732973,\"widthPct\":39.188074849349825,\"heightPct\":38.70996842580063,\"rotation\":0,\"visible\":true,\"locked\":false,\"type\":\"photo-slot\",\"shapeKind\":\"rectangle\",\"photoOrder\":1,\"name\":\"Photo 1 Copy\"}]",
+    "background_color": "#ffffff",
+    "paper_size": "4x6",
+    "orientation": "portrait",
+    "dpi": 300,
+    "favorite": 1,
+    "animated": 0
+  }
+}

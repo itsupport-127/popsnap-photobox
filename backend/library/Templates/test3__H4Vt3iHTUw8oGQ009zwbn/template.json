@@ -1,0 +1,24 @@
+{
+  "format": "popsnap-library-template",
+  "version": 1,
+  "savedAt": "2026-11-04T09:01:45.530Z",
+  "row": {
+    "id": "H4Vt3iHTUw8oGQ009zwbn",
+    "name": "test3",
+    "category": "custom",
+    "background_url": "",
+    "canvas_width": 1200,
+    "canvas_height": 1800,
+    "slots": "[]",
+    "created_at": "2026-10-08 07:28:43",
+    "price": 25000,
+    "foreground_url": null,
+    "layers": "[{\"id\":\"e8ffca89-88d5-4b3f-afbe-00af05c4fed0\",\"xPct\":0,\"yPct\":0.35931453841901373,\"widthPct\":100,\"heightPct\":99.28137092316197,\"rotation\":0,\"visible\":true,\"locked\":false,\"type\":\"image\",\"imageUrl\":\"/uploads/a8e867f15d0e007f57b51d752393eb48.png\",\"lockAspect\":false,\"fileName\":\"Template passport-04.png\",\"name\":\"Template passport-04\"}]",
+    "background_color": "#ffffff",
+    "paper_size": "4x6",
+    "orientation": "portrait",
+    "dpi": 300,
+    "favorite": 1,
+    "animated": 0
+  }
+}

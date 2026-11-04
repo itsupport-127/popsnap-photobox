@@ -46,6 +46,20 @@ const fail = (m) => { console.error("GAGAL:", m); process.exitCode = 1; };
     }
     step("foto selesai");
     for (let n = 1; n <= 8; n++) { const el = await p.$(`[aria-label='Pilih foto ${n}']`); if (el) await el.click({ force: true }).catch(() => {}); await p.waitForTimeout(250); }
+    { // Zoom / Geser foto di Editor: buka jendela, perbesar, geser, selesai
+      const zb = p.getByText("Zoom / Geser").first();
+      if (await zb.count()) {
+        await zb.click({ force: true });
+        const dlg = p.locator("[aria-label='Zoom dan geser foto']"); await dlg.waitFor({ timeout: 4000 });
+        await p.locator("[aria-label=Perbesar]").click(); await p.locator("[aria-label=Perbesar]").click();
+        const bx = await dlg.locator("div[style*='aspect-ratio']").boundingBox();
+        await p.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await p.mouse.down(); await p.mouse.move(bx.x + bx.width / 2 + 40, bx.y + bx.height / 2 + 20, { steps: 4 }); await p.mouse.up();
+        await p.screenshot({ path: "smoke-zoom.png" });
+        await dlg.getByText("Selesai").click();
+        await dlg.waitFor({ state: "detached", timeout: 3000 });
+        step("zoom / geser foto bisa dipakai");
+      } else console.log("[smoke] tombol Zoom / Geser tidak ada (dilewati)");
+    }
     for (let i = 0; i < 12; i++) { // NEXT / Selesai sampai layar hasil
       const t = await text(); if (/Finish/.test(t) && /Foto/.test(t)) break;
       const sel = await p.$("[aria-label=Selesai]"); if (sel) await sel.click({ force: true }).catch(() => {});
