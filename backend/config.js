@@ -40,6 +40,8 @@ module.exports = {
   // langsung lewat File Explorer kapan saja tanpa perlu app kebuka.
   // Default: folder "output" di dalam project. Ganti ke path manapun kamu mau,
   // misal Desktop\POPSNAP-Photos, lewat OUTPUT_DIR di .env.
+  // Pustaka (Settings + Templates) yang bisa dibuka di File Explorer, lihat library.js. Aplikasi .exe mengisi POPSNAP_LIBRARY = Pictures\POPSNAP.
+  libraryDir: process.env.POPSNAP_LIBRARY || require("path").join(dataDir, "library"),
   outputDir: process.env.OUTPUT_DIR || require("path").join(dataDir, "output"),
 
   // --- Sync ke server pusat (opsional) ---

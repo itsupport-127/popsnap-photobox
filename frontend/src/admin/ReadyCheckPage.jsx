@@ -45,6 +45,7 @@ async function runChecks() {
     const o = await j("/api/online");
     add("Internet", o.offline ? "warn" : "ok", o.offline ? "Offline. Booth hanya menerima voucher dan layar akhir tanpa QR." : "Tersambung.");
   } catch { add("Internet", "skip", "Tidak bisa diperiksa."); }
+  if (pay.simulate) add("Simulasi pembayaran", "bad", "Simulasi pembayaran MASIH AKTIF: QRIS dianggap lunas tanpa uang masuk.", "Pembayaran > QRIS, matikan \"Simulasi\" sebelum studio dibuka.");
   if (pay.mode === "voucher") add("Pembayaran", "ok", "Mode voucher (bayar di kasir).");
   else if (pay.qrisDown) add("Pembayaran", "warn", "QRIS belum bisa dipakai (offline atau belum diatur). Tamu diminta menghubungi CS.", "Cek internet dan Pembayaran > QRIS.");
   else add("Pembayaran", "ok", "QRIS siap.");

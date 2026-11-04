@@ -78,6 +78,7 @@ function startBackend() {
       ELECTRON_RUN_AS_NODE: "1",
       POPSNAP_DATA: dataDir,
       OUTPUT_DIR: process.env.OUTPUT_DIR || path.join(app.getPath("documents"), "POPSNAP-Photos"),
+      POPSNAP_LIBRARY: process.env.POPSNAP_LIBRARY || path.join(app.getPath("pictures"), "POPSNAP"), // folder Settings + Templates (seperti dslrBooth)
     },
   });
 

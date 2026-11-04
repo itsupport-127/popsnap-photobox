@@ -4,6 +4,7 @@ import { Field, NumInput, inputCls } from "../editorKit";
 import { Btn, Card, Notice } from "../ui";
 import FolderPicker from "../FolderPicker";
 import { Check, Row, Select } from "./controls";
+import LibraryRow from "./LibraryRow";
 
 const MODES = [
   ["photo", "Photo", "Ambil foto untuk dicetak / dikirim", true],
@@ -104,6 +105,7 @@ export default function SettingsGeneral({ s, set, pin, setPin, outputDir, only }
           </div>
           <p className="text-[12px] text-[#6B7684] mt-1">Sedang dipakai: <span className="font-mono">{outputDir || "—"}</span>{!g.dataDir && " (bawaan)"}</p>
         </Row>
+        <LibraryRow />
         <Row label="Real time Export" hint="Salin hasil ke folder lain begitu sesi selesai — berguna untuk flashdisk atau folder cloud (Google Drive, OneDrive).">
           <Check checked={ex.enabled} onChange={(v) => set(["general", "export", "enabled"], v)} label="Aktifkan ekspor real-time" />
           <div className={`flex gap-5 pt-1 ${ex.enabled ? "" : "opacity-40 pointer-events-none"}`}>

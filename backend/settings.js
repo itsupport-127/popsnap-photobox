@@ -236,6 +236,7 @@ function load() {
 function persist() {
   db.prepare("INSERT INTO app_settings (key, value) VALUES ('main', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .run(JSON.stringify(cache));
+  try { require("./library").schedule(); } catch { /* pustaka belum siap saat start awal */ }
 }
 
 function newApiKey() {

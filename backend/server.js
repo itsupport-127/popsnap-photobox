@@ -28,6 +28,7 @@ const { hashPassword, verifyPassword, createToken, requirePerm } = auth;
 const settingsStore = require("./settings");
 const cloud = require("./cloudSync"); // sinkron riwayat transaksi ke aplikasi kasir
 const doku = require("./doku"); // QRIS DOKU (SNAP)
+const library = require("./library"); // cermin Settings + Templates ke folder Pictures\POPSNAP
 const gallery = require("./gallerySync"); // unggah hasil sesi ke POPSNAP Galeri (halaman QR + cloud)
 const { customAlphabet } = require("nanoid");
 // Mode akhir sesi (Admin > Tampilan > Sharing): "preview" = hasil hanya ditampilkan di booth, tanpa QR / link / unggah ke galeri cloud.
@@ -114,6 +115,10 @@ app.use((req, res, next) => {
   if (process.env.POPSNAP_ALLOW_LAN === "1" || !KIOSK_ONLY.some((p) => req.path.startsWith(p))) return next();
   if (LOOPBACK.has(req.socket.remoteAddress)) return next();
   res.status(403).json({ error: "Hanya bisa diakses dari PC booth ini." });
+});
+app.use((req, res, next) => { // perubahan template apa pun -> cermin ulang folder pustaka (jeda 3 dtk, digabung)
+  if (req.method !== "GET" && req.path.startsWith("/api/templates")) res.on("finish", () => { if (res.statusCode < 400) library.schedule(); });
+  next();
 });
 app.use(cors());
 app.use(express.json({ limit: "50mb" })); // dinaikkan karena sekarang kirim SEMUA foto mentah (8x) + hasil final sekaligus
@@ -1030,7 +1035,7 @@ app.get("/api/settings/public", async (req, res) => {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
-  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate) } });
+  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate) } });
 });
 
 // ---------- IZIN FOTO (SOSMED / DIPAJANG DI TOKO) ----------
@@ -1835,6 +1840,16 @@ app.post("/api/gallery/archive/upload", requirePerm("payment.gateway"), (req, re
   res.status(r.ok ? 200 : 400).json(r);
 });
 gallery.start();
+library.start();
+app.get("/api/library/status", requirePerm("settings.manage"), (req, res) => res.json(library.status()));
+app.post("/api/library/sync", requirePerm("settings.manage"), (req, res) => { const r = library.syncNow(); res.status(r.ok ? 200 : 500).json({ ...r, status: library.status() }); });
+app.post("/api/library/restore", requirePerm("settings.manage"), (req, res) => {
+  try {
+    const out = library.restore({ settings: req.body?.settings !== false, templates: req.body?.templates !== false });
+    logActivity(req.user, "library.restore", "folder pustaka", out, req);
+    res.json({ ...out, status: library.status() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 
 // ---------- Sync ringkasan ke server pusat (opsional) ----------
 // Jalan tiap 5 menit. Kalau CLOUD_SYNC_URL gak diisi di .env, fungsi ini
