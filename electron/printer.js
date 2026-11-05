@@ -34,19 +34,20 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 // Penggaris tepi: persegi panjang bersarang tiap 1 mm dari tepi kertas (1..6). Angka TERKECIL yang garisnya tampak utuh di sebuah sisi
 // = berapa mm sisi itu terpotong (batas area cetak printer / driver tidak "Borderless").
 function ruler(color) {
-  const rings = [1, 2, 3, 4, 5, 6].map((i) => `<div style="position:absolute;left:${i}mm;top:${i}mm;right:${i}mm;bottom:${i}mm;border:0.25mm solid ${color}"></div>`).join("");
-  const nums = [1, 2, 3, 4, 5, 6].map((i) => { const o = `calc(18% + ${i * 9}%)`; const t = `position:absolute;font:1.7mm sans-serif;line-height:1;background:#fff;color:${color};padding:0 .3mm`;
+  const rings = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `<div style="position:absolute;left:${i}mm;top:${i}mm;right:${i}mm;bottom:${i}mm;border:0.25mm solid ${color}"></div>`).join("");
+  const nums = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => { const o = `calc(12% + ${i * 9}%)`; const t = `position:absolute;font:1.7mm sans-serif;line-height:1;background:#fff;color:${color};padding:0 .3mm`;
     return `<span style="${t};left:${o};top:${i - 0.9}mm">${i}</span><span style="${t};left:${o};bottom:${i - 0.9}mm">${i}</span><span style="${t};top:${o};left:${i - 0.4}mm">${i}</span><span style="${t};top:${o};right:${i - 0.4}mm">${i}</span>`; }).join("");
   return { rings, nums };
 }
 // Bagian HTML yang sama untuk cetak foto & halaman uji
-function pageHtml({ body, scale, x, y, script = "", pre = "" }) {
+function pageHtml({ body, scale, scaleY, x, y, script = "", pre = "" }) {
   const sc = Math.max(0.5, Math.min(1.5, (Number(scale) || 100) / 100));
+  const scy = Number(scaleY) > 0 ? Math.max(0.5, Math.min(1.5, Number(scaleY) / 100)) : sc; // skala vertikal terpisah (kalibrasi); 0 = ikut skala
   const tx = Math.max(-100, Math.min(100, Number(x) || 0)), ty = Math.max(-100, Math.min(100, Number(y) || 0));
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 @page { size: auto; margin: 0 }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fff }
-#w { position: absolute; inset: 0; transform: translate(${tx / 2}%, ${ty / 2}%) scale(${sc}); transform-origin: center; display: flex }
+#w { position: absolute; inset: 0; transform: translate(${tx / 2}%, ${ty / 2}%) scale(${sc}, ${scy}); transform-origin: center; display: flex }
 #w img { flex: 1 1 0; min-width: 0; height: 100%; display: block }
 </style></head><body><div id="w">${body}</div>${pre}<script>${script}</script></body></html>`;
 }
@@ -113,7 +114,7 @@ async function print(o) {
 })();`;
   const body = o.dup ? '<img><img>' : '<img>';
   const pre = (o.guides ? guidesHtml("TES CETAK — garis merah luar hilang di satu sisi = sisi itu terpotong") : "") + '<script src="d.js"></script>';
-  const html = pageHtml({ body, scale: o.scale, x: o.x, y: o.y, script, pre });
+  const html = pageHtml({ body, scale: o.scale, scaleY: o.scaleY, x: o.x, y: o.y, script, pre });
   const dataJs = Buffer.from("window.__src=" + JSON.stringify(o.dataUrl) + ";");
   // tunggu skrip selesai (window.__info terisi) lalu tentukan orientasi kertas dari bentuk gambar
   const rot = !!o.autorotate && !o.dup; // strip 2x6 dobel selalu tegak
@@ -122,7 +123,7 @@ async function print(o) {
 }
 
 async function testPage(o) {
-  const lab = `${esc(o.printer || "(printer bawaan Windows)")} — skala ${o.scale}% · geser ${o.x}/${o.y}`;
+  const lab = o.calibrate ? `${esc(o.printer || "(printer bawaan Windows)")} — LEMBAR KALIBRASI (tanpa skala / geser aplikasi)` : `${esc(o.printer || "(printer bawaan Windows)")} — skala ${o.scale}%${o.scaleY ? "/" + o.scaleY + "%" : ""} · geser ${o.x}/${o.y}`;
   const { rings, nums } = ruler("#000");
   const body = `<div style="flex:1;position:relative;box-sizing:border-box;border:3px solid #000;font:14px sans-serif">${rings}${nums}
     <div style="position:absolute;left:0;right:0;top:50%;border-top:1px dashed #888"></div><div style="position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #888"></div>
@@ -131,7 +132,7 @@ async function testPage(o) {
     <div style="position:absolute;left:0;right:0;top:44%;text-align:center;font-size:22px;font-weight:700">POPSNAP — TES CETAK</div>
     <div style="position:absolute;left:0;right:0;top:52%;text-align:center">${lab}</div>
     <div style="position:absolute;left:10%;right:10%;top:60%;text-align:center;font-size:11px;color:#333">Garis bernomor = jarak dari tepi kertas (mm). Angka terkecil yang tampak utuh di tiap sisi = mm yang terpotong di sisi itu.</div></div>`;
-  return printHtml(pageHtml({ body, scale: o.scale, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1, paper: o.paper });
+  return printHtml(pageHtml({ body, scale: o.scale, scaleY: o.scaleY, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1, paper: o.paper });
 }
 
 module.exports = { list, addShare, print, testPage };

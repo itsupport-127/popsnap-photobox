@@ -13,7 +13,7 @@ export async function listPrinters() {
 }
 export const addSharedPrinter = (unc) => (el() ? el().addShare(unc) : Promise.resolve({ ok: false, error: "Hanya di aplikasi desktop." }));
 
-const unitOf = (u) => ({ printer: u.name || "", scale: u.scale, x: u.x, y: u.y });
+const unitOf = (u) => ({ printer: u.name || "", scale: u.scale, scaleY: u.scaleY || 0, x: u.x, y: u.y });
 
 // Ukuran kertas yang dikirim ke printer. "template" = ikuti ukuran kertas yang tertulis di template (strip dobel -> 4x6);
 // template ukuran custom dicocokkan ke kertas baku terdekat menurut rasio. Tidak ketemu -> "auto" (ikuti printer).
@@ -39,10 +39,12 @@ export async function printTemplateTest(cfg, template, composedUrl, which = "mai
   return p.image({ dataUrl: composedUrl, ...unitOf(cfg[which]), copies: 1, sharpening: cfg.sharpening, fit: cfg.fit, paper: paperForTemplate(cfg, template, dup), autorotate: cfg.autorotate, dup, guides: true });
 }
 
-export async function printTestPage(cfg, which = "main") {
+/** calibrate: lembar kalibrasi = tanpa skala / geser aplikasi (untuk mengukur apa yang dilakukan driver), pada kertas `paper`. */
+export async function printTestPage(cfg, which = "main", opts = {}) {
   const p = el();
   if (!p) return { ok: false, error: "Cetak tes hanya di aplikasi desktop POPSNAP (.exe)." };
-  return p.test({ ...unitOf(cfg[which]), paper: cfg.paper === "template" ? "auto" : cfg.paper || "auto" });
+  const paper = opts.paper || (cfg.paper === "template" ? "auto" : cfg.paper || "auto");
+  return p.test(opts.calibrate ? { ...unitOf(cfg[which]), scale: 100, scaleY: 0, x: 0, y: 0, paper, calibrate: true } : { ...unitOf(cfg[which]), paper });
 }
 
 // Printer berikutnya untuk cetak bergantian (printer utama & kedua)

@@ -38,8 +38,8 @@ const DEFAULTS = {
   // ---- CETAK (printer utama / kedua; printer sharing Windows maupun langsung) ----
   printing: {
     enabled: false,
-    main: { name: "", scale: 100, x: 0, y: 0 },    // name = nama printer di Windows (printer sharing \\\\PC\\NAMA juga bisa)
-    second: { name: "", scale: 100, x: 0, y: 0 },
+    main: { name: "", scale: 100, scaleY: 0, x: 0, y: 0 },    // name = nama printer di Windows (printer sharing \\\\PC\\NAMA juga bisa)
+    second: { name: "", scale: 100, scaleY: 0, x: 0, y: 0 },
     auto: false,          // cetak otomatis tiap sesi selesai (langsung, tanpa tamu menekan apa pun)
     autoCopies: 1,        // jumlah salinan cetak otomatis (1-3)
     showButton: true,     // tombol ADD PRINT di layar hasil (tamu menambah cetakan)
@@ -309,7 +309,8 @@ function update(patch) {
 
   if (isObj(p.printing)) {
     const pr = p.printing, cp = cur.printing;
-    const unit = (v, c) => { const o = obj(v); return { name: o.name === undefined ? c.name : str(o.name, 200, ""), scale: num(o.scale, 50, 150, c.scale), x: num(o.x, -100, 100, c.x), y: num(o.y, -100, 100, c.y) }; };
+    const f1 = (v, min, max, fb) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n * 10) / 10)) : fb; }; // 1 desimal (kalibrasi cetak)
+    const unit = (v, c) => { const o = obj(v); return { name: o.name === undefined ? c.name : str(o.name, 200, ""), scale: f1(o.scale, 50, 150, c.scale), scaleY: o.scaleY === undefined ? (c.scaleY ?? 0) : (Number(o.scaleY) === 0 ? 0 : f1(o.scaleY, 50, 150, c.scaleY ?? 0)), x: f1(o.x, -100, 100, c.x), y: f1(o.y, -100, 100, c.y) }; };
     const lm = obj(pr.limit);
     next.printing = {
       enabled: bool(pr.enabled, cp.enabled),

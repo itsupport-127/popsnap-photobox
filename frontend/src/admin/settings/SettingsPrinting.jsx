@@ -6,6 +6,7 @@ import { addSharedPrinter, canSilentPrint, listPrinters, printTestPage } from ".
 import { getPrintStats, resetPrintCount } from "../../services/settingsService";
 import { listTemplates } from "../../services/templateService";
 import { canSilentPrint as canPrintNow, paperForTemplate, printTemplateTest } from "../../services/printService";
+import { calibrate } from "../../utils/printCalib";
 import { composeImage } from "../../utils/composeImage";
 import { photoSlotPlan } from "../../utils/templatePhotos";
 
@@ -59,7 +60,8 @@ export function PrintPreview({ pr }) {
   let w, h;
   if (pr.fit === "fit") { if (c > p) { w = PW; h = PW / c; } else { h = PH; w = PH * c; } }
   else if (c > p) { h = PH; w = PH * c; } else { w = PW; h = PW / c; }
-  w *= sc; h *= sc;
+  const scy = Number(u.scaleY) > 0 ? Math.max(0.5, Math.min(1.5, Number(u.scaleY) / 100)) : sc;
+  w *= sc; h *= scy;
   const cx = PW / 2 + ((Number(u.x) || 0) / 2 / 100) * PW, cy = PH / 2 + ((Number(u.y) || 0) / 2 / 100) * PH;
   const left = cx - w / 2, top = cy - h / 2;
   // Bagian gambar yang keluar kertas / kertas yang tidak tertutup (dalam % luas kertas)
@@ -141,7 +143,47 @@ export function FitCheck({ pr }) {
 const N = ({ value, min, onCommit }) => <div className="w-28"><NumInput value={value} min={min} onCommit={(v) => onCommit(Math.round(v))} /></div>;
 
 // Penjajaran cetak (skala + geser) satu printer, gaya dslrBooth "Printer Alignment"
-function Alignment({ s, set, which, label }) {
+/** Kalibrasi otomatis: cetak lembar kalibrasi (tanpa skala / geser), baca berapa mm tiap sisi terpotong, lalu hitung Skala + Geser yang pas. */
+function Calibrator({ s, set, which }) {
+  const pr = s.printing;
+  const [paper, setPaper] = useState(PAPER_IN[pr.paper] && pr.paper !== "a5" ? pr.paper : "4x6");
+  const [cut, setCut] = useState({ t: "", b: "", l: "", r: "" });
+  const [msg, setMsg] = useState(null);
+  const dim = PAPER_IN[paper];
+  const mm = { w: Math.min(...dim) * 25.4, h: Math.max(...dim) * 25.4 };
+  const filled = ["t", "b", "l", "r"].some((k) => cut[k] !== "");
+  const rec = filled ? calibrate(mm, cut, pr.fit) : null;
+  async function sheet() {
+    setMsg(null);
+    const r = await printTestPage(pr, which, { calibrate: true, paper });
+    setMsg(r.ok ? { tone: "info", t: "Lembar kalibrasi dikirim. Isi angka dari cetakan di bawah." } : { tone: "error", t: r.error });
+  }
+  function apply() {
+    set(["printing", which, "scale"], rec.scale); set(["printing", which, "scaleY"], rec.scaleY);
+    set(["printing", which, "x"], rec.x); set(["printing", which, "y"], rec.y);
+    setMsg({ tone: "info", t: "Diterapkan. Simpan pengaturan, lalu cetak tes template untuk memeriksa." });
+  }
+  const box = (k, label) => <label className="flex items-center gap-1 text-[12px]">{label}<input type="number" step="0.5" value={cut[k]} placeholder="0" onChange={(e) => setCut((c) => ({ ...c, [k]: e.target.value }))} className={`${inputCls} !w-20`} />mm</label>;
+  return (
+    <div className="border border-[#BFD3EA] bg-[#EEF5FD] p-3 mt-3">
+      <div className="text-[12px] font-semibold text-[#2A4A73] mb-1">KALIBRASI OTOMATIS (disarankan kalau terpotong / ada putih di satu sisi)</div>
+      <ol className="text-[12px] text-[#3a4452] list-decimal pl-5 space-y-1">
+        <li>Pilih kertas yang terpasang, lalu <b>cetak lembar kalibrasi</b> (dicetak tanpa skala / geser aplikasi, jadi memperlihatkan apa yang dilakukan driver).
+          <div className="flex items-center gap-3 mt-1 flex-wrap"><Select className="max-w-[200px]" value={paper} onChange={setPaper} options={[["4x6", "4x6 inci"], ["5x7", "5x7 inci"], ["6x8", "6x8 inci"], ["8x10", "8x10 inci"], ["a4", "A4"]]} /><Btn onClick={sheet} disabled={!canSilentPrint()}>Cetak lembar kalibrasi</Btn>{msg && <span className={msg.tone === "error" ? "text-red-600" : "text-emerald-600"}>{msg.t}</span>}</div></li>
+        <li>Di cetakan, pada tiap sisi lihat <b>garis bernomor</b> (1–8 = mm dari tepi). Angka terkecil yang garisnya tampak <b>utuh</b> = mm yang terpotong di sisi itu (0 kalau bingkai hitam paling luar utuh). Kalau di luar bingkai ada ruang putih, isi angka <b>minus</b> (ukur dengan penggaris).
+          <div className="flex gap-4 flex-wrap mt-1">{box("t", "Atas")}{box("b", "Bawah")}{box("l", "Kiri")}{box("r", "Kanan")}</div></li>
+        <li>Terapkan hasil hitungan:
+          {rec && !rec.warn ? (<div className="mt-1 flex items-center gap-3 flex-wrap"><span>Skala <b>{rec.scale}%</b>{rec.scaleY ? <> · skala vertikal <b>{rec.scaleY}%</b></> : null} · geser horizontal <b>{rec.x}</b> · geser vertikal <b>{rec.y}</b></span><Btn onClick={apply}>Terapkan</Btn></div>)
+            : <div className="mt-1 text-[#6B7684]">{rec?.warn || "Isi angka keempat sisi (boleh 0)."}</div>}
+          {rec?.note && <div className="mt-1 text-[#6B7684]">{rec.note}</div>}
+        </li>
+      </ol>
+      <div className="text-[12px] text-[#6B7684] mt-1">Berlaku untuk template tegak (portrait). Setelah diterapkan, cetak tes template (di bawah) untuk memastikan garis merah tepi utuh.</div>
+    </div>
+  );
+}
+
+export function Alignment({ s, set, which, label }) {
   const u = s.printing[which];
   const [msg, setMsg] = useState(null);
   async function test() {
@@ -154,9 +196,11 @@ function Alignment({ s, set, which, label }) {
       <div className="text-[12px] font-semibold text-[#55606E] mb-1">PENJAJARAN CETAK — {label}</div>
       <p className="text-[12px] text-[#6B7684] mb-1">Dipakai untuk menengahkan hasil di kertas kalau cetakan bergeser atau terpotong.</p>
       <Row label="Skala" hint="Kecilkan kalau hasil terpotong; besarkan kalau ada tepi putih."><Range value={u.scale} min={50} max={150} unit="%" onChange={(v) => set(["printing", which, "scale"], v)} /></Row>
+      <Row label="Skala vertikal" hint="Hanya untuk mengoreksi driver yang memperbesar tinggi dan lebar tidak sama (diisi otomatis oleh Kalibrasi). 0 = ikut Skala."><div className="flex items-center gap-3"><div className="w-64"><Range value={u.scaleY || u.scale} min={50} max={150} unit="%" onChange={(v) => set(["printing", which, "scaleY"], v)} /></div><Btn onClick={() => set(["printing", which, "scaleY"], 0)} disabled={!(u.scaleY > 0)}>Samakan dengan Skala</Btn></div></Row>
       <Row label="Geser horizontal"><Range value={u.x} min={-100} max={100} onChange={(v) => set(["printing", which, "x"], v)} /></Row>
       <Row label="Geser vertikal"><Range value={u.y} min={-100} max={100} onChange={(v) => set(["printing", which, "y"], v)} /></Row>
       <Row label=""><div className="flex items-center gap-3"><Btn onClick={test} disabled={!canSilentPrint()}>Cetak halaman uji</Btn>{msg && <span className={`text-[12px] ${msg.tone === "error" ? "text-red-600" : "text-emerald-600"}`}>{msg.t}</span>}</div></Row>
+      <Calibrator s={s} set={set} which={which} />
     </div>
   );
 }

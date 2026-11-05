@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
 import { ChevronLeft, Trash2, ZoomIn } from "lucide-react";
 import PhotoAdjustModal from "../components/PhotoAdjustModal";
-import SlotGestureLayer from "../components/SlotGestureLayer";
 import { LayerContent, LayerBox, containerStyle } from "../components/TemplatePreview";
 import SesiDecor from "../components/SesiDecor";
 import StickerStep, { StickerStatic } from "../components/StickerStep";
@@ -26,7 +25,7 @@ const LAYOUT = {
     scroll: { up: { left: 928, top: 168 }, down: { left: 928, top: 931 }, track: { left: 947, top: 232, height: 640 } },
     mirror: { left: 1116, top: 114 }, filters: { left: 1041, top: 242, width: 539, height: 402, cols: 3, centers: [135, 273, 411] },
     glass: { left: 993, top: 81, width: 635, height: 941, r: 70 }, next: { left: 1134, top: 726, topLater: 761 }, trash: { left: 318, top: 859 }, back: { left: 170, top: 857 },
-    hint: { left: 1000, top: 850, width: 620 }, adj: { left: 170, top: 968, width: 381, height: 70, font: 30 },
+    hint: { left: 1000, top: 850, width: 620 }, adj: { left: 170, top: 968, width: 381, height: 70, font: 30, label: "Zoom / Geser" },
   },
   square: {
     card: { left: 20, top: 80, width: 1160, height: 1040, r: 72.5 }, divider: { left: 690, top: 130, width: 1, height: 960 }, timer: { left: 520, top: 30 },
@@ -34,7 +33,7 @@ const LAYOUT = {
     scroll: { up: { left: 674, top: 150 }, down: { left: 674, top: 984 }, track: { left: 693, top: 214, height: 711 } },
     mirror: { left: 742, top: 150, scale: 0.85 }, filters: { left: 730, top: 270, width: 410, height: 580, cols: 3, centers: [75, 205, 335] },
     glass: { left: 700, top: 110, width: 470, height: 1000, r: 70 }, next: { left: 753, top: 900, topLater: 900 }, trash: { left: 171, top: 920 }, back: { left: 70, top: 920 },
-    hint: { left: 710, top: 1020, width: 450 }, adj: { left: 70, top: 1030, width: 300, height: 70, font: 28 },
+    hint: { left: 710, top: 1020, width: 450 }, adj: { left: 70, top: 1030, width: 300, height: 70, font: 28, label: "Zoom / Geser" },
   },
   portrait: {
     card: { left: 30, top: 56, width: 1020, height: 1690, r: 72.5 }, divider: { left: 90, top: 905, width: 900, height: 1 }, timer: { left: 460, top: 8 },
@@ -42,7 +41,7 @@ const LAYOUT = {
     scroll: { up: { left: 958, top: 110 }, down: { left: 958, top: 834 }, track: { left: 977, top: 174, height: 601 } },
     mirror: { left: 308, top: 950 }, filters: { left: 90, top: 1060, width: 900, height: 420, cols: 4, centers: [112, 337, 562, 787] },
     glass: { left: 60, top: 925, width: 960, height: 800, r: 70 }, next: { left: 358, top: 1600, topLater: 1600 }, trash: { left: 236, top: 782 }, back: { left: 60, top: 782 },
-    hint: { left: 140, top: 1510, width: 800 }, adj: { left: 350, top: 785, width: 175, height: 92, font: 24 },
+    hint: { left: 140, top: 1510, width: 800 }, adj: { left: 346, top: 785, width: 190, height: 92, font: 20, label: "Zoom/Geser" },
   },
 };
 
@@ -192,15 +191,12 @@ export default function EditorScreen({ session, dispatch }) {
               );
             })}
 
-            {/* Langkah 2: cubit / geser foto di bingkai = zoom langsung; ketuk = buka Zoom / Geser */}
+            {/* Langkah 2: ketuk foto di bingkai = buka Zoom / Geser */}
             {phase === "style" && plan.slots.map((layer) => {
               const idx = plan.indexByLayer.get(layer.id);
               return chosen[idx] != null && (
-                <SlotGestureLayer key={`adj-${layer.id}`} label={`Zoom / geser foto ${idx + 1}`} url={session.shots[chosen[idx]]}
-                  adj={session.editorState.adjust?.[idx]}
-                  onChange={(adj) => dispatch({ type: "SET_PHOTO_ADJUST", payload: { slot: idx, adj } })}
-                  onTap={() => setAdjSlot(idx)}
-                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, zIndex: 5 }} />
+                <div key={`adj-${layer.id}`} role="button" aria-label={`Zoom / geser foto ${idx + 1}`} onClick={() => setAdjSlot(idx)}
+                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, cursor: "pointer", zIndex: 5 }} />
               );
             })}
 
@@ -299,15 +295,15 @@ export default function EditorScreen({ session, dispatch }) {
         {/* Zoom / Geser foto di dalam slot (langkah 1 & 2) */}
         {filled > 0 && phase !== "stickers" && (
           <button type="button" className="strip-btn" onClick={() => setAdjSlot(selectedSlot ?? chosen.findIndex((v) => v != null))}
-            style={{ left: U(L.adj.left), top: U(L.adj.top), width: U(L.adj.width), height: U(L.adj.height), fontSize: U(L.adj.font), padding: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: U(10), whiteSpace: "nowrap" }}>
-            <ZoomIn color="#fff" strokeWidth={2.6} style={{ width: U(L.adj.font + 6), height: U(L.adj.font + 6) }} /> Zoom / Geser
+            style={{ left: U(L.adj.left), top: U(L.adj.top), width: U(L.adj.width), height: U(L.adj.height), fontSize: U(L.adj.font), padding: `0 ${U(10)}`, boxSizing: "border-box", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", gap: U(8), whiteSpace: "nowrap" }}>
+            <ZoomIn color="#fff" strokeWidth={2.6} style={{ width: U(L.adj.font + 4), height: U(L.adj.font + 4), flex: "none" }} /> {L.adj.label}
           </button>
         )}
 
         {/* Petunjuk singkat langkah 1 */}
         {phase === "pick" && (
           <p style={{ left: U(L.hint.left), top: U(L.hint.top), width: U(L.hint.width), textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: "#55606E", margin: 0 }}>
-            {filled}/{requiredSlots} foto terpilih{full ? " — seret foto untuk ganti / tukar posisi, atau Zoom / Geser" : " — ketuk atau seret foto ke bingkai"}
+            {filled}/{requiredSlots} foto terpilih{full ? " — seret untuk tukar, atau atur dengan Zoom/Geser" : " — ketuk atau seret foto ke bingkai"}
           </p>
         )}
       </div>

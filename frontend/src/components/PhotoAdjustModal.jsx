@@ -78,7 +78,7 @@ export default function PhotoAdjustModal({ slots, startSlot, adjust, filterId, m
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,.78)" }} role="dialog" aria-label="Zoom dan geser foto">
-      <div className="modal-card flex flex-col items-center gap-3 p-4" style={{ maxWidth: "94vw", maxHeight: "96vh" }}>
+      <div className="modal-card flex flex-col items-center gap-3 p-4" style={{ maxWidth: "94vw", maxHeight: "96vh", overflowY: "auto" }}>
         <p className="display-h3" style={{ margin: 0 }}>Zoom &amp; geser foto</p>
         {slots.length > 1 && (
           <div className="flex gap-2 flex-wrap justify-center">
