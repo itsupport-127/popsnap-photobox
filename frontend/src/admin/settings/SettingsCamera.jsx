@@ -86,6 +86,11 @@ export default function SettingsCamera({ s, set, only }) {
         <Row label="Sumber kamera" hint="Webcam = kamera yang terbaca browser. DSLR / mirrorless (Canon, Nikon, dll lewat USB) memakai program digiCamControl — jalan di Chrome maupun aplikasi .exe.">
           <Select value={c.mode} onChange={(v) => set(["camera", "mode"], v)} options={[["webcam", "Webcam / kamera USB (browser)"], ["dslr", "Kamera DSLR / mirrorless (Canon, Nikon, dll via digiCamControl)"]]} className="max-w-md" />
         </Row>
+        {c.mode === "dslr" && (
+          <Row label="Sumber tampilan Live" hint="Kamera (USB) = live view lewat kabel USB: praktis tapi ada jeda, apalagi kalau ISO tinggi / shutter lambat. Webcam / HDMI = tampilan live dari perangkat video (kamera ke capture card HDMI, atau webcam) yang nyaris tanpa jeda; FOTO tetap dijepret DSLR lewat USB. Pilih perangkatnya di 'Webcam Video Input'. Catatan: HDMI biasanya 16:9 sedangkan foto 3:2, jadi bingkai live bisa sedikit beda dari hasil foto.">
+            <Select value={c.liveSource ?? "camera"} onChange={(v) => set(["camera", "liveSource"], v)} options={[["camera", "Kamera (USB live view)"], ["webcam", "Webcam / capture card HDMI (rendah delay)"]]} className="max-w-md" />
+          </Row>
+        )}
         <Row label="Orientasi kamera" hint="Otomatis = ikut bentuk gambar kamera. Pilih Portrait kalau kamera dipasang tegak (gambar diputar 90° otomatis; kalau terbalik, ubah Rotation di bawah jadi 180°), atau Landscape untuk kebalikannya. Berlaku juga ke hasil foto.">
           <Select value={c.orientation ?? "auto"} onChange={(v) => set(["camera", "orientation"], v)} options={[["auto", "Otomatis (ikut gambar kamera)"], ["landscape", "Landscape (melebar)"], ["portrait", "Portrait (tegak)"]]} className="max-w-xs" />
         </Row>
@@ -188,6 +193,9 @@ export default function SettingsCamera({ s, set, only }) {
         <Row label="Area template"><Check checked={lv.guide !== false} onChange={(v) => set(["camera", "liveView", "guide"], v)} label="Gelapkan bagian kamera yang tidak masuk ke slot foto template" hint="Bagian terang = yang akan tercetak di template; bagian gelap = terpotong." /></Row>
         <Row label="Rotation" hint="Untuk kamera yang dipasang miring/portrait. Berlaku juga ke hasil foto.">
           <Select value={String(lv.rotation)} onChange={(v) => set(["camera", "liveView", "rotation"], Number(v))} options={[["0", "0 derajat"], ["90", "90 derajat"], ["180", "180 derajat"], ["270", "270 derajat"]]} className="max-w-xs" />
+        </Row>
+        <Row label="Putar hasil Live / GIF" hint="Putaran tambahan khusus klip Live dan GIF (tidak mengubah tampilan live di layar maupun foto). Pakai kalau hasil Live/GIF terbalik padahal tampilan live sudah benar.">
+          <Select value={String(lv.clipRotation ?? 0)} onChange={(v) => set(["camera", "liveView", "clipRotation"], Number(v))} options={[["0", "0 derajat (ikut Rotation)"], ["90", "+90 derajat"], ["180", "+180 derajat (balik)"], ["270", "+270 derajat"]]} className="max-w-xs" />
         </Row>
         <Row label="Display on Start Screen"><Check checked={lv.displayOnStart} onChange={(v) => set(["camera", "liveView", "displayOnStart"], v)} label="Tampilkan live view sebagai latar layar Start" hint="Kamera menyala terus selama layar Start tampil." /></Row>
 

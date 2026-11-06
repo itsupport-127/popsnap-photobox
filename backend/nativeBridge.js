@@ -67,7 +67,7 @@ class NativeBridge {
   reset() {
     this.ready = false; this.connected = false; this.camera = ""; this.lvOn = false; this.error = "";
     this.waiters = []; this.frame = null; this.frameSeq = 0; this.lastSeq = 0; this.frameOk = 0; this.frameRejected = 0; this.frameNoEoi = 0; this.resyncBytes = 0; this.bridgeFps = 0;
-    this.lastFrameAt = 0; this.frameWaiters = []; this.camWaiters = []; this.camInfoData = null; this.camSetResult = null; this.camOld = false;
+    this.expApplied = {}; this.lastFrameAt = 0; this.frameWaiters = []; this.camWaiters = []; this.camInfoData = null; this.camSetResult = null; this.camOld = false;
     this.rx = Buffer.alloc(0); this.pend = []; this.pendBytes = 0;
   }
   log(l) { this.lines.push(l); if (this.lines.length > 60) this.lines.shift(); console.log(`[native:${this.brand}]`, l); }
@@ -148,7 +148,7 @@ class NativeBridge {
     if (!/^FPS\|/.test(line)) this.log(line);
     if (/^READY/.test(line)) { this.ready = true; this.send("CONNECT"); }
     else if (/^CONNECTED\|/.test(line)) { this.syncBoost(true); this.connected = true; this.camera = line.slice(10).trim(); this.error = ""; }
-    else if (/^DISCONNECTED/.test(line)) { this.connected = false; this.lvOn = false; }
+    else if (/^DISCONNECTED/.test(line)) { this.connected = false; this.lvOn = false; this.expApplied = {}; this.profile = ""; }
     else if (/^LIVEVIEW_STARTED/.test(line)) this.lvOn = true;
     else if (/^LIVEVIEW_STOPPED/.test(line)) { this.lvOn = false; this.frame = null; }
     else if (/^FPS\|/.test(line)) this.bridgeFps = Number(line.slice(4)) || 0;
@@ -165,7 +165,7 @@ class NativeBridge {
   /** "Auto Exposure" live view (Admin > Kamera; Canon: ISO+shutter, Nikon: ISO): jumlah stop eksposur kamera diterangkan selama live view. Dikirim sebelum LIVEVIEW_START bila berubah. */
   syncBoost(force) {
     let n = 0;
-    try { const lv = require("./settings").load().camera?.liveView ?? {}; n = (lv.canonAutoExposure === false || lv.asIs === true) ? 0 : Math.max(0, Math.min(6, Math.round(Number(lv.canonBoost ?? 3)))); } catch { /* pakai 0 */ }
+    try { const cm = require("./settings").load().camera ?? {}; const lv = cm.liveView ?? {}; n = (cm.exposure?.split || lv.canonAutoExposure === false || lv.asIs === true) ? 0 : Math.max(0, Math.min(6, Math.round(Number(lv.canonBoost ?? 3)))); } catch { /* pakai 0 */ }
     if (force || n !== this.boostSent) { this.boostSent = n; this.log("> LV_BOOST " + n); try { this.proc?.stdin.write(`LV_BOOST ${n}\n`); } catch { /* proses mati */ } }
   }
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Btn, Card, Notice, Page } from "./ui";
-import { getCameraExposure, setCameraExposure } from "../services/settingsService";
+import { getAdminSettings, saveAdminSettings, getCameraExposure, setCameraExposure } from "../services/settingsService";
 import { API_BASE } from "../services/settingsService";
 
 const PROPS = [
@@ -47,6 +47,32 @@ export default function CameraSettingsPage() {
   const [photo, setPhoto] = useState(null);
   const [shooting, setShooting] = useState(false);
   const [wizard, setWizard] = useState(false);
+  // Profil terpisah: "photo" dipakai saat jepret, "live" saat live view menyala (server menerapkannya otomatis bergantian)
+  const [ex, setEx] = useState({ split: false, live: {}, photo: {} });
+  const [tab, setTab] = useState("photo");
+  useEffect(() => { getAdminSettings().then((s) => { const e = s?.camera?.exposure; if (e) setEx({ split: !!e.split, live: e.live || {}, photo: e.photo || {} }); }).catch(() => {}); }, []);
+  const snap = (i) => Object.fromEntries(PROPS.map(({ key }) => [key, i?.[key]?.cur]).filter(([, v]) => v != null && v !== ""));
+  async function saveEx(next) { setEx(next); try { await saveAdminSettings({ camera: { exposure: next } }); } catch (e) { setErr(e.message); } }
+  async function toggleSplit(on) {
+    const cur = snap(info);
+    await saveEx(on ? { split: true, live: { ...cur }, photo: { ...cur } } : { ...ex, split: false });
+    setTab("photo");
+  }
+  async function switchTab(t) {
+    if (t === tab || busy) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const target = { ...(ex[t] || {}) };
+      let cur = info;
+      for (const { key } of PROPS) {
+        const v = target[key];
+        if (v == null || cur?.[key]?.cur === v) continue;
+        try { const r = await setCameraExposure(key, v); if (r?.info) cur = r.info; } catch { /* abaikan: server tetap mencoba lagi nanti */ }
+      }
+      if (cur) setInfo(cur);
+      setTab(t);
+    } finally { setBusy(false); }
+  }
 
   const load = useCallback(async () => {
     setBusy(true); setErr("");
@@ -58,7 +84,10 @@ export default function CameraSettingsPage() {
 
   async function change(prop, value) {
     setBusy(true); setErr(""); setMsg("");
-    try { const r = await setCameraExposure(prop, value); if (r?.info) setInfo(r.info); }
+    try {
+      const r = await setCameraExposure(prop, value); if (r?.info) setInfo(r.info);
+      if (ex.split) saveEx({ ...ex, [tab]: { ...ex[tab], [prop]: String(value) } });
+    }
     catch (e) { setErr(e.message); await load(); }
     finally { setBusy(false); }
   }
@@ -107,9 +136,30 @@ export default function CameraSettingsPage() {
       {err && <Notice tone="error">{err}</Notice>}
       {msg && <Notice tone="ok">{msg}</Notice>}
 
+      {ex.split && info?.profileErrors && Object.keys(info.profileErrors).length > 0 && (
+        <Notice tone="warn">Kamera menolak sebagian nilai profil: {Object.entries(info.profileErrors).map(([k, v]) => `${k.startsWith("live") ? "Live" : "Foto"} ${k.split(".")[1].toUpperCase()} (${v})`).join(", ")}. Pastikan dial kamera di mode M dan pilih nilai dari daftar, lalu klik "Baca ulang dari kamera".</Notice>
+      )}
+
       {info && info.manual === false && (
         <Notice tone="warn">Kamera belum di mode <b>M (Manual)</b>. Putar dial mode ke M supaya shutter, aperture, dan ISO bisa diatur dari sini.</Notice>
       )}
+
+      <Card title="PROFIL LIVE & FOTO" hint="Atur ISO / shutter / aperture / WB berbeda untuk tampilan live dan untuk foto, lalu diganti otomatis. Hanya Canon / Nikon langsung.">
+        <label className="flex items-center gap-2 text-[14px] font-semibold text-[#181B23]">
+          <input type="checkbox" checked={ex.split} disabled={busy || !info} onChange={(e) => toggleSplit(e.target.checked)} />
+          Pisahkan pengaturan Live dan Foto
+        </label>
+        {ex.split && (
+          <div className="mt-3">
+            <div className="inline-flex rounded-xl border border-[#C7D0DA] overflow-hidden">
+              {[["photo", "Foto"], ["live", "Live view"]].map(([k, l]) => (
+                <button key={k} onClick={() => switchTab(k)} disabled={busy} className={`px-4 py-2 text-[14px] font-bold ${tab === k ? "bg-[#E02843] text-white" : "bg-white text-[#262A38]"}`}>{l}</button>
+              ))}
+            </div>
+            <div className="text-[12px] text-[#55606E] mt-2">Sedang mengedit profil <b>{tab === "photo" ? "Foto" : "Live view"}</b>: perubahan di bawah hanya tersimpan untuk profil ini. Contoh: Live view ISO tinggi supaya terang, Foto ISO rendah. Saat ini "Auto Exposure" bawaan dimatikan otomatis.</div>
+          </div>
+        )}
+      </Card>
 
       <Card title="EKSPOSUR" hint="Pilihan diambil dari kamera yang tersambung. Klik panah atau pilih dari daftar.">
         {!info ? (

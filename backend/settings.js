@@ -63,7 +63,9 @@ const DEFAULTS = {
     audioDeviceId: "",
     dslr: { host: "http://localhost:5513", camera: "", driver: "digicam", model: "", zModel: "" }, // DSLR via digiCamControl (web server lokal)
     orientation: "auto", // auto = ikut gambar kamera | landscape | portrait (kamera dipasang tegak: gambar otomatis diputar 90°)
-    liveView: { enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
+    liveSource: "camera", // mode DSLR: sumber tampilan live view. camera = live view dari kamera (USB, lewat program perantara) | webcam = webcam / capture card HDMI (lebih cepat, tanpa delay); foto tetap dari DSLR
+    exposure: { split: false, live: {}, photo: {} }, // Setelan Kamera (Canon/Nikon langsung): split = ISO / shutter / aperture / WB Live View dan Foto dipisah. Nilai = kode pilihan kamera (angka)
+    liveView: { clipRotation: 0, enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
   },
 
   // ---- EDITOR: filter foto yang bisa ditambah admin (No Filter selalu ada di urutan pertama) ----
@@ -331,6 +333,12 @@ function update(patch) {
       mode: pick(c.mode, ["webcam", "dslr"], cc.mode),
       orientation: pick(c.orientation, ["auto", "landscape", "portrait"], cc.orientation),
       autoTrigger: bool(c.autoTrigger, cc.autoTrigger),
+      liveSource: pick(c.liveSource, ["camera", "webcam"], cc.liveSource ?? "camera"),
+      exposure: (() => {
+        const e = obj(c.exposure), ce = cc.exposure ?? { split: false, live: {}, photo: {} };
+        const prof = (v, cv) => { const o = obj(v), out = {}; for (const k of ["iso", "av", "tv", "wb"]) { const x = o[k] === undefined ? cv?.[k] : o[k]; if (x !== undefined && x !== null && /^\d{1,10}$/.test(String(x))) out[k] = String(x); } return out; };
+        return { split: bool(e.split, ce.split), live: prof(e.live, ce.live), photo: prof(e.photo, ce.photo) };
+      })(),
       resolution: num(c.resolution, 0, 3, cc.resolution),
       videoDeviceId: c.videoDeviceId === undefined ? cc.videoDeviceId : str(c.videoDeviceId, 300, ""),
       audioDeviceId: c.audioDeviceId === undefined ? cc.audioDeviceId : str(c.audioDeviceId, 300, ""),
@@ -342,6 +350,7 @@ function update(patch) {
       liveView: {
         enabled: bool(lv.enabled, cc.liveView.enabled), mirror: bool(lv.mirror, cc.liveView.mirror),
         rotation: pick(Number(lv.rotation), [0, 90, 180, 270], cc.liveView.rotation),
+        clipRotation: pick(Number(lv.clipRotation), [0, 90, 180, 270], cc.liveView.clipRotation ?? 0), // putaran TAMBAHAN khusus hasil Live / GIF (di atas Rotation)
         displayOnStart: bool(lv.displayOnStart, cc.liveView.displayOnStart),
         guide: bool(lv.guide, cc.liveView.guide),
         fitTemplate: bool(lv.fitTemplate, cc.liveView.fitTemplate),

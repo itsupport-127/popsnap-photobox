@@ -67,6 +67,33 @@ function mount(app, { settingsStore }) {
   };
   const q = (s) => encodeURIComponent(s);
 
+  // Profil eksposur terpisah Live vs Foto (hanya Canon/Nikon langsung): kirim ke kamera hanya properti yang berbeda dari yang terakhir diterapkan.
+  // Gagal menerapkan tidak boleh menggagalkan live / jepret: cukup dicatat.
+  // Satu jalur antrean: pergantian profil dari live view dan dari jepret tidak boleh berjalan bersamaan (balasan kamera bisa tertukar).
+  let expQ = Promise.resolve();
+  function applyExposure(b, which) {
+    const job = expQ.then(async () => {
+      try {
+        if (!b || !b.native) return;
+        const ex = settingsStore.load().camera?.exposure;
+        if (!ex?.split) { b.profile = ""; return; }
+        const prof = ex[which] || {};
+        b.expApplied = b.expApplied || {}; b.expErrors = b.expErrors || {};
+        const c = cfg();
+        for (const prop of ["tv", "av", "iso", "wb"]) {
+          const v = prof[prop];
+          if (v == null || v === "" || b.expApplied[prop] === String(v)) continue;
+          const r = await b.camSet(c.model, prop, String(v));
+          if (r.ok) { b.expApplied[prop] = String(v); delete b.expErrors[`${which}.${prop}`]; }
+          else { b.expErrors[`${which}.${prop}`] = r.error || "ditolak kamera"; log(`profil ${which}: ${prop} ditolak:`, r.error); }
+        }
+        b.profile = which; // profil yang sedang aktif di kamera
+      } catch (e) { log(`profil ${which} gagal:`, e.message); }
+    });
+    expQ = job.catch(() => {});
+    return job;
+  }
+
   // Alamat bisa 127.0.0.1 (IPv4) atau localhost / [::1] (IPv6) tergantung digiCamControl -> coba semuanya, ingat yang berhasil
   let goodHost = "";
   function hostCandidates() {
@@ -220,12 +247,13 @@ function mount(app, { settingsStore }) {
       fpsN++; if (now - fpsT >= 1000) { fps = Math.round((fpsN * 1000) / (now - fpsT) * 10) / 10; fpsN = 0; fpsT = now; }
       res.write(Buffer.concat([Buffer.from(`--popsnapframe\r\nContent-Type: image/jpeg\r\nContent-Length: ${buf.length}\r\n\r\n`), buf, TAIL]));
     };
-    let lastStart = 0;
+    let lastStart = 0, lastProfile = 0;
     while (alive) {
       try {
         const now = Date.now();
         if (b) {
-          if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; b.send("LIVEVIEW_START"); }
+          if (b.profile === "photo" && capturing === 0 && now - lastProfile > 1500) { lastProfile = now; await applyExposure(b, "live"); if (!alive) break; }
+          if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; await applyExposure(b, "live"); if (!alive) break; b.send("LIVEVIEW_START"); }
           const f = b.readFrameIfNew();
           if (f) {
             put(f);
@@ -326,7 +354,7 @@ function mount(app, { settingsStore }) {
   };
   app.get("/api/camera/exposure", requirePerm("settings.manage"), async (req, res) => {
     const n = nativeFor(); if (n.err) return res.status(400).json({ error: n.err });
-    try { const info = await n.b.camInfo(n.c.model); if (info?.error) return res.status(502).json({ error: info.error }); res.json(info); }
+    try { const info = await n.b.camInfo(n.c.model); if (info?.error) return res.status(502).json({ error: info.error }); res.json({ ...info, profileErrors: n.b.expErrors || {} }); }
     catch (e) { res.status(502).json({ error: e.message }); }
   });
   app.post("/api/camera/exposure", requirePerm("settings.manage"), async (req, res) => {
@@ -334,6 +362,7 @@ function mount(app, { settingsStore }) {
     const { prop, value } = req.body || {};
     try {
       const r = await n.b.camSet(n.c.model, String(prop || ""), String(value ?? ""));
+      if (r.ok && n.b.expApplied) delete n.b.expApplied[String(prop)];
       if (!r.ok) return res.status(502).json({ error: r.error || "Ditolak kamera", info: r.info || null });
       res.json({ ok: true, info: r.info });
     } catch (e) { res.status(502).json({ error: e.message }); }
@@ -346,7 +375,9 @@ function mount(app, { settingsStore }) {
       let buf;
       const c0 = cfg();
       if (c0.driver !== "digicam") {
-        buf = await sdkBridge.get(c0.driver, c0.model).capture(c0.model, c0.zModel);
+        const bc = sdkBridge.get(c0.driver, c0.model);
+        await applyExposure(bc, "photo");
+        buf = await bc.capture(c0.model, c0.zModel);
         return `data:image/jpeg;base64,${buf.toString("base64")}`;
       }
       try {
