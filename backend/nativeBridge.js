@@ -169,7 +169,7 @@ class NativeBridge {
     if (force || n !== this.boostSent) { this.boostSent = n; this.log("> LV_BOOST " + n); try { this.proc?.stdin.write(`LV_BOOST ${n}\n`); } catch { /* proses mati */ } }
   }
 
-  send(cmd) { if (cmd === "LIVEVIEW_START" && this.ready) this.syncBoost(false); this.log("> " + cmd); try { this.proc?.stdin.write(cmd + "\n"); } catch { /* proses sudah mati */ } }
+  send(cmd) { if (cmd === "LIVEVIEW_START") this.syncBoost(true); /* selalu kirim ulang: live view yang dimulai ulang (pulih macet / layar baru) tidak boleh kehilangan kecerahan tambahan */ this.log("> " + cmd); try { this.proc?.stdin.write(cmd + "\n"); } catch { /* proses sudah mati */ } }
 
   async ensure(model) {
     const err = this.start(model);

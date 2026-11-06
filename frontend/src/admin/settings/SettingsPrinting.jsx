@@ -178,6 +178,8 @@ function Calibrator({ s, set, which }) {
           {rec?.note && <div className="mt-1 text-[#6B7684]">{rec.note}</div>}
         </li>
       </ol>
+      <div className="text-[12px] text-[#3a4452] mt-2 border-t border-[#BFD3EA] pt-2"><b>Cek ukuran dengan penggaris:</b> di lembar ada garis ukur <b>70 mm</b> (mendatar) dan <b>120 mm</b> (tegak). Kalau terukur 70 dan 120 mm (selisih di bawah 0,5 mm) berarti ukuran cetak akurat. Terukur lebih panjang = driver memperbesar halaman (itu yang dikoreksi kalibrasi di atas).</div>
+      <div className="text-[12px] text-[#3a4452] mt-2"><b>Hemat kertas foto (pakai HVS):</b> potong HVS seukuran kertas foto (4x6 = 10,2 x 15,2 cm, muat 2 lembar per A4), muat di tray, pilih ukuran kertas yang sama di sini, lalu cetak lembar kalibrasi dan tes template. Geometri (ukuran, geser, potongan tepi) ditentukan ukuran kertas dan Expansion di driver, bukan jenis kertasnya, jadi hasilnya sama dengan kertas foto Imapro luster. Syaratnya Borderless di driver tetap aktif untuk HVS (kalau abu-abu pilih jenis kertas Plain / Matte; kalau tetap abu-abu, HVS hanya bisa dipakai untuk cek ukuran, bukan potongan tepi). Pakai kertas foto asli hanya untuk satu cetak akhir dan untuk cek warna.</div>
       <div className="text-[12px] text-[#6B7684] mt-1">Berlaku untuk template tegak (portrait). Setelah diterapkan, cetak tes template (di bawah) untuk memastikan garis merah tepi utuh.</div>
     </div>
   );

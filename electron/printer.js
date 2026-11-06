@@ -129,9 +129,13 @@ async function testPage(o) {
     <div style="position:absolute;left:0;right:0;top:50%;border-top:1px dashed #888"></div><div style="position:absolute;top:0;bottom:0;left:50%;border-left:1px dashed #888"></div>
     <div style="position:absolute;left:8mm;top:8mm;background:#fff">KIRI-ATAS</div><div style="position:absolute;right:8mm;top:8mm;background:#fff">KANAN-ATAS</div>
     <div style="position:absolute;left:8mm;bottom:8mm;background:#fff">KIRI-BAWAH</div><div style="position:absolute;right:8mm;bottom:8mm;background:#fff">KANAN-BAWAH</div>
-    <div style="position:absolute;left:0;right:0;top:44%;text-align:center;font-size:22px;font-weight:700">POPSNAP — TES CETAK</div>
-    <div style="position:absolute;left:0;right:0;top:52%;text-align:center">${lab}</div>
-    <div style="position:absolute;left:10%;right:10%;top:60%;text-align:center;font-size:11px;color:#333">Garis bernomor = jarak dari tepi kertas (mm). Angka terkecil yang tampak utuh di tiap sisi = mm yang terpotong di sisi itu.</div></div>`;
+    <div style="position:absolute;left:20mm;right:6mm;top:44%;text-align:center;font-size:18px;font-weight:700">POPSNAP — TES CETAK</div>
+    <div style="position:absolute;left:20mm;right:6mm;top:52%;text-align:center;font-size:11px">${lab}</div>
+    <div style="position:absolute;left:20mm;top:70%;width:70mm;border-top:0.3mm solid #000;height:3mm;border-left:0.3mm solid #000;border-right:0.3mm solid #000;box-sizing:border-box"></div>
+    <div style="position:absolute;left:20mm;width:70mm;top:calc(70% + 3.5mm);text-align:center;font-size:9px">garis ukur 70 mm (mendatar)</div>
+    <div style="position:absolute;left:10mm;top:50%;height:120mm;margin-top:-60mm;border-left:0.3mm solid #000;width:3mm;border-top:0.3mm solid #000;border-bottom:0.3mm solid #000;box-sizing:border-box"></div>
+    <div style="position:absolute;left:14mm;top:50%;transform:translateY(-50%);font-size:9px;writing-mode:vertical-rl">garis ukur 120 mm (tegak)</div>
+    <div style="position:absolute;left:20mm;right:6mm;top:60%;text-align:center;font-size:10px;color:#333">Garis bernomor = jarak dari tepi kertas (mm). Angka terkecil yang tampak utuh di tiap sisi = mm yang terpotong di sisi itu.</div></div>`;
   return printHtml(pageHtml({ body, scale: o.scale, scaleY: o.scaleY, x: o.x, y: o.y }), { deviceName: o.printer, copies: 1, paper: o.paper });
 }
 

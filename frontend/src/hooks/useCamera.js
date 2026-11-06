@@ -111,7 +111,7 @@ export default function useCamera(orientation = "portrait", opts = {}) {
       const live = sum / (d.length / 4);
       if (live < 3) return; // layar hitam / belum ada gambar: jangan dikejar
       const want = Math.min(2.5, Math.max(1, photoLumaRef.current / live));
-      g += (want - g) * 0.3; // halus: orang lewat / lampu berubah tidak membuat kecerahan "berdenyut"
+      g += (want - g) * (Math.abs(want - g) > 0.4 ? 0.7 : 0.3); // halus; lonjakan besar (live view baru menyala / dimulai ulang) diikuti cepat supaya tidak terlihat terang-redup: orang lewat / lampu berubah tidak membuat kecerahan "berdenyut"
       if (Math.abs(g - gainRef.current / ((cam.liveView?.brightness ?? 100) / 100)) > 0.04) {
         const v = Math.round(g * 100) / 100;
         setAutoGainState(v);
