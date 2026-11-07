@@ -28,6 +28,7 @@ async function lumaOfImage(src) {
 }
 import logo from "../assets/logo-popsnap.png";
 import { photoSlotPlan } from "../utils/templatePhotos";
+import ShotThumb, { THUMB_MODES, shapeStyle } from "../components/ShotThumb";
 import useClipRecorder from "../hooks/useClipRecorder";
 import { clearClips } from "../utils/clipStore";
 import useShape from "../hooks/useShape";
@@ -116,7 +117,11 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
   // Crop live view sesuai bentuk slot foto pertama di template (supaya orang tahu persis bagian yang akan tercetak)
   const tpl = session.selectedTemplate;
-  const firstSlot = tpl ? photoSlotPlan(tpl.layers ?? []).slots[0] : null;
+  const plan = tpl ? photoSlotPlan(tpl.layers ?? []) : null;
+  // Slot untuk foto ke-k (urutan foto = photoOrder terkecil dulu), bukan sekadar layer pertama di daftar
+  const slotOf = (k) => (plan ? plan.slots.find((l) => plan.indexByLayer.get(l.id) === k) ?? plan.slots[0] ?? null : null);
+  const slotARof = (l) => (l && l.heightPct > 0 && tpl.canvasHeight > 0 ? (l.widthPct * tpl.canvasWidth) / (l.heightPct * tpl.canvasHeight) : null);
+  const firstSlot = slotOf(0);
   const aspect = firstSlot
     ? (firstSlot.widthPct * tpl.canvasWidth) / (firstSlot.heightPct * tpl.canvasHeight)
     : session.orientation === "portrait" ? 9 / 16 : 16 / 9;
@@ -147,6 +152,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
   // Rasio kamera asli (dilaporkan LiveView): bingkai menampilkan SELURUH pandangan kamera, tidak dipotong
   const [camAspect, setCamAspect] = useState(null);
+  const [shotAR, setShotAR] = useState(null); // rasio foto hasil jepret (dilaporkan thumbnail): bisa beda dari live view (mis. HDMI 16:9 vs foto 3:2)
   // "Bentuk bingkai" (Admin > Kamera): bawaan = ikuti MODE KAMERA (landscape/portrait sesuai orientasi & rotasi kamera, tampil utuh); opsional = potong sesuai slot template
   // frameMode: camera = ikut kamera | template = ikut slot | screen = penuhi area layar (portrait/persegi: kotak lebih tinggi, kamera dipotong)
   const lvCfg = s.camera?.liveView ?? {};
@@ -167,7 +173,19 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const GAP = 14;
   // Landscape: dua kolom (kiri/kanan) berisi separuh-separuh. Portrait: dua baris di bawah kamera.
   const rows = Math.ceil(totalShots / 2);
-  const tile = stacked ? fit(aspect || 1.5, (FW - (Math.ceil(totalShots / 2) - 1) * GAP) / Math.ceil(totalShots / 2), V(0, 190, 125)) : fit(aspect || 1.5, 170, (FH - (rows - 1) * GAP) / rows);
+  // Bentuk thumbnail (Admin > Kamera): hanya tampilan pratinjau, tidak mengubah foto / hasil akhir
+  const thumbMode = THUMB_MODES.includes(lvCfg.thumbMode) ? lvCfg.thumbMode : "ratio";
+  const shaped = thumbMode === "shape" || thumbMode === "each";
+  const photoAR = shotAR || camAspect || 1.5;
+  const slotFor = (p) => (thumbMode === "each" ? slotOf(p) : slotOf(0));
+  const kindOf = (p) => slotFor(p)?.shapeKind || "rect";
+  const slotARat = (p) => slotARof(slotFor(p)) || aspect || 1.5;
+  const arFor = (p) => (thumbMode === "frame" || thumbMode === "whole" ? photoAR : slotARat(p));
+  const tileMaxW = stacked ? (FW - (Math.ceil(totalShots / 2) - 1) * GAP) / Math.ceil(totalShots / 2) : 170;
+  const tileMaxH = stacked ? V(0, 190, 125) : (FH - (rows - 1) * GAP) / rows;
+  const tileFor = (p) => fit(arFor(p), tileMaxW, tileMaxH);
+  // Ukuran dasar tata letak = kotak terbesar (supaya blok kamera + thumbnail tidak bergeser antar sesi / mode)
+  const tile = Array.from({ length: Math.max(1, totalShots) }, (_, p) => tileFor(p)).reduce((m, t) => ({ w: Math.max(m.w, t.w), h: Math.max(m.h, t.h) }), { w: 0, h: 0 });
   const blockGap = V(0, 60, 40), regionTop = V(0, 110, 90), regionH = V(0, 1450, 930);
   // Penuhi area layar: kotak kamera memakai sisa tinggi di atas dua baris thumbnail
   const areaH = stacked ? Math.max(300, regionH - blockGap - (2 * tile.h + GAP) - 40) : FH;
@@ -175,6 +193,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const frame = fillArea ? { w: FW, h: areaH } : fit(boxAspect, FW, FH);
   const renderTile = (p) => {
     const shot = slotShot(p);
+    const t = tileFor(p);
+    const emptyShape = shaped && kindOf(p) !== "star" ? shapeStyle(kindOf(p), t.w / t.h) : {};
     return (
       <button
         key={p}
@@ -182,12 +202,14 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         disabled={!shot || !canRetake}
         onClick={() => setPreviewIdx(p)}
         aria-label={shot ? `Foto ${p + 1}, ketuk untuk melihat besar / retake` : `Foto ${p + 1} belum diambil`}
-        className={`sess-tile ${mirror ? "is-mir" : ""} ${shot ? "is-filled" : ""} ${p === nextSlot && needed ? "is-next" : ""}`}
-        style={{ width: U(tile.w), height: U(tile.h) }}
+        className={`sess-tile ${shot ? "is-filled" : ""} ${shot && shaped ? "is-shaped" : ""} ${p === nextSlot && needed ? "is-next" : ""}`}
+        style={{ width: U(t.w), height: U(t.h), ...emptyShape }}
       >
-        {shot ? <img src={shot} alt="" draggable={false} /> : <span style={{ fontSize: U(34) }}>{p + 1}</span>}
-        {shot && <span className="sess-tile__num" style={{ fontSize: U(20), width: U(34), height: U(34) }}>{p + 1}</span>}
-        {shot && canRetake && <span className="sess-tile__retake" style={{ fontSize: U(20), height: U(34) }}>↺ Retake</span>}
+        {shot
+          ? <ShotThumb src={shot} mode={thumbMode} kind={kindOf(p)} slotAR={slotARat(p)} boxAR={t.w / t.h} mirror={mirror} U={U} onPhotoAR={setShotAR}
+              retake={canRetake && !(shaped && kindOf(p) === "star") ? <span className="sess-tile__retake" style={{ fontSize: U(20), height: U(34) }}>↺ Retake</span> : null} />
+          : <span style={{ fontSize: U(34) }}>{p + 1}</span>}
+        {shot && <span className="sess-tile__num" style={{ fontSize: U(20), width: U(34), height: U(34), zIndex: 2 }}>{p + 1}</span>}
       </button>
     );
   };
@@ -227,7 +249,9 @@ export default function PhotoSessionScreen({ session, dispatch }) {
     portrait: { px: 60, py: 200, pw: 960, ph: 1330, tx: 78, ty: 218, tw: 924, th: 1294, ttl: { left: 228, top: 120 }, next: { left: 832, top: 1716 } },
     square: { px: 100, py: 120, pw: 1000, ph: 960, tx: 118, ty: 138, tw: 964, th: 924, ttl: { left: 288, top: 36 }, next: { left: 338, top: 1111 } } }[shape];
   const sqRv = shape === "square" && reviewing; // pratinjau akhir di layar persegi: baris bawah dirapatkan (Take | NEXT | Mirror | Retake) agar tidak saling menimpa
-  const rvTile = fit(aspect || 1.5, (RV.tw - 120 - (rvCols - 1) * 30) / rvCols, (RV.th - 120 - (rvRows - 1) * 34) / rvRows - 54);
+  const rvMaxW = (RV.tw - 120 - (rvCols - 1) * 30) / rvCols, rvMaxH = (RV.th - 120 - (rvRows - 1) * 34) / rvRows - 54;
+  const rvTileFor = (p) => fit(arFor(p), rvMaxW, rvMaxH);
+  const rvTile = Array.from({ length: Math.max(1, totalShots) }, (_, p) => rvTileFor(p)).reduce((m, t) => ({ w: Math.max(m.w, t.w), h: Math.max(m.h, t.h) }), { w: 0, h: 0 });
 
   return (
     <div className="kiosk-screen strip-screen h-full w-full overflow-hidden" data-shape={shape}>
@@ -281,9 +305,9 @@ export default function PhotoSessionScreen({ session, dispatch }) {
               <div className="sess-review" style={{ "--cols": rvCols, gap: `${U(34)} ${U(30)}`, padding: `${U(60)} ${U(60)}` }}>
                 {Array.from({ length: totalShots }, (_, p) => (
                   <div key={p} className="sess-review__item" style={{ width: U(rvTile.w) }}>
-                    <div className={`sess-review__shot ${mirror ? "is-mir" : ""}`} style={{ width: U(rvTile.w), height: U(rvTile.h) }}>
-                      <img src={session.shots[p]} alt={`foto ${p + 1}`} draggable={false} />
-                      <span className="sess-tile__num" style={{ fontSize: U(22), width: U(38), height: U(38) }}>{p + 1}</span>
+                    <div className={`sess-review__shot ${shaped ? "is-shaped" : ""}`} style={{ width: U(rvTileFor(p).w), height: U(rvTileFor(p).h), margin: "0 auto" }}>
+                      <ShotThumb src={session.shots[p]} mode={thumbMode} kind={kindOf(p)} slotAR={slotARat(p)} boxAR={rvTileFor(p).w / rvTileFor(p).h} mirror={mirror} U={U} edge={5} onPhotoAR={setShotAR} alt={`foto ${p + 1}`} />
+                      <span className="sess-tile__num" style={{ fontSize: U(22), width: U(38), height: U(38), zIndex: 2 }}>{p + 1}</span>
                     </div>
                     <button onClick={() => handleRetake(p)} className="sess-review__btn" style={{ height: U(44), fontSize: U(22) }}>↺ Retake</button>
                   </div>
@@ -343,7 +367,13 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         <div className="absolute inset-0 z-30 bg-black/75 flex items-center justify-center p-4" onClick={() => setPreviewIdx(null)}>
           <div className="modal-card p-5 sm:p-7 max-w-[90vw] flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
             <p className="display-h3">Foto {previewIdx + 1} dari {totalShots}</p>
-            <img src={slotShot(previewIdx)} alt={`foto ${previewIdx + 1}`} className="max-h-[58vh] max-w-[80vw] object-contain rounded-xl border-2 border-black/20" style={mirrorStyle} />
+            {thumbMode === "ratio" || thumbMode === "whole" ? (
+              <img src={slotShot(previewIdx)} alt={`foto ${previewIdx + 1}`} className="max-h-[58vh] max-w-[80vw] object-contain rounded-xl border-2 border-black/20" style={mirrorStyle} />
+            ) : (
+              <div style={{ position: "relative", aspectRatio: String(arFor(previewIdx)), height: `min(58vh, calc(80vw / ${arFor(previewIdx)}))` }}>
+                <ShotThumb src={slotShot(previewIdx)} mode={thumbMode} kind={kindOf(previewIdx)} slotAR={slotARat(previewIdx)} boxAR={arFor(previewIdx)} mirror={mirror} U={(n) => `${n * 2}px`} edge={3} onPhotoAR={setShotAR} alt={`foto ${previewIdx + 1}`} />
+              </div>
+            )}
             <p className="text-sm text-[#55606E]">{retakesLeft > 0 ? `Sisa retake: ${retakesLeft}. Foto baru akan menggantikan foto ini.` : "Batas retake sudah habis."}</p>
             <div className="flex gap-3">
               <button onClick={() => setPreviewIdx(null)} className="btn-pop btn-outline !border-pop-dark !text-pop-dark px-6 py-2.5">Tutup</button>

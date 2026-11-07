@@ -1,7 +1,7 @@
 {
   "format": "popsnap-library-settings",
   "version": 1,
-  "savedAt": "2026-11-04T10:54:00.843Z",
+  "savedAt": "2026-11-07T10:50:11.307Z",
   "settings": {
     "event": {
       "name": "POPSNAP",
@@ -55,12 +55,14 @@
       "main": {
         "name": "",
         "scale": 100,
+        "scaleY": 0,
         "x": 0,
         "y": 0
       },
       "second": {
         "name": "",
         "scale": 100,
+        "scaleY": 0,
         "x": 0,
         "y": 0
       },
@@ -95,7 +97,14 @@
         "zModel": ""
       },
       "orientation": "auto",
+      "liveSource": "camera",
+      "exposure": {
+        "split": false,
+        "live": {},
+        "photo": {}
+      },
       "liveView": {
+        "clipRotation": 0,
         "enabled": true,
         "mirror": true,
         "rotation": 0,

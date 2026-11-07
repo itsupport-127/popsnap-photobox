@@ -65,7 +65,7 @@ const DEFAULTS = {
     orientation: "auto", // auto = ikut gambar kamera | landscape | portrait (kamera dipasang tegak: gambar otomatis diputar 90°)
     liveSource: "camera", // mode DSLR: sumber tampilan live view. camera = live view dari kamera (USB, lewat program perantara) | webcam = webcam / capture card HDMI (lebih cepat, tanpa delay); foto tetap dari DSLR
     exposure: { split: false, live: {}, photo: {} }, // Setelan Kamera (Canon/Nikon langsung): split = ISO / shutter / aperture / WB Live View dan Foto dipisah. Nilai = kode pilihan kamera (angka)
-    liveView: { clipRotation: 0, enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
+    liveView: { clipRotation: 0, enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", thumbMode: "ratio", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
   },
 
   // ---- EDITOR: filter foto yang bisa ditambah admin (No Filter selalu ada di urutan pertama) ----
@@ -355,6 +355,7 @@ function update(patch) {
         guide: bool(lv.guide, cc.liveView.guide),
         fitTemplate: bool(lv.fitTemplate, cc.liveView.fitTemplate),
         frameMode: pick(lv.frameMode, ["camera", "template", "screen"], lv.fitTemplate ? "template" : cc.liveView.frameMode),
+        thumbMode: pick(lv.thumbMode, ["ratio", "shape", "each", "frame", "whole"], cc.liveView.thumbMode),
         brightness: num(lv.brightness, 10, 1000, cc.liveView.brightness),
         autoBright: bool(lv.autoBright, cc.liveView.autoBright),
         canonAutoExposure: bool(lv.canonAutoExposure, cc.liveView.canonAutoExposure),

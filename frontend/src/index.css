@@ -244,6 +244,7 @@ html, body, #root {
     transition: transform .15s ease;
   }
   .sess-tile.is-filled { border: max(2px, calc(var(--u) * 4)) solid #fff; box-shadow: var(--pop-shadow), 0 0 0 max(1px, calc(var(--u) * 2)) #000; background: #fff; }
+  .sess-tile.is-filled.is-shaped, .sess-review__shot.is-shaped { background: transparent; border-color: transparent; box-shadow: none; overflow: visible; }
   .sess-tile.is-filled:not(:disabled):active { transform: scale(.96); }
   .sess-tile.is-next { border-color: #FDB533; animation: sessPulse 1.1s ease-in-out infinite; }
   .sess-tile img { width: 100%; height: 100%; object-fit: cover; }
