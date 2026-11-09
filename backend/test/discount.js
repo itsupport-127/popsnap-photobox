@@ -29,6 +29,10 @@ const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "booth-")); process.env.POPSN
   const settings = require("../settings"), db = require("../db");
   settings.update({ payment: { mode: "qris", qris: { simulate: true }, cloud: { enabled: true, url: `http://127.0.0.1:${kasir.address().port}`, token: "tok", studioCode: "ABC", discountEnabled: true } } });
   db.prepare("INSERT INTO templates (id, name, category, background_url, canvas_width, canvas_height, price) VALUES ('t35', 'Tes 35rb', 'PhotoBox', '/x.png', 1200, 1800, 35000)").run();
+  // transaksi "uang asli" (bukan simulasi) yang sudah lunas: harus terkirim ke kasir lengkap dengan meta diskon
+  const REAL = "PB-ABC-261109-9001", nowIso = new Date().toISOString();
+  db.prepare(`INSERT INTO tx_log (order_no, method, mode, template_id, template_name, category, amount, status, created_at, paid_at, updated_at, gross_amount, discount, promo_code, promo_name, is_test)
+    VALUES (?, 'qris', 'photo', 't35', 'Tes 35rb', 'PhotoBox', 28000, 'paid', ?, ?, ?, 35000, 7000, 'HEMAT5', 'Promo Pagi + Hemat 5rb', 0)`).run(REAL, nowIso, nowIso, nowIso);
   db.close?.();
   const PORT = 4700 + Math.floor(Math.random() * 200), B = `http://127.0.0.1:${PORT}`;
   const srv = spawn(process.execPath, [path.join(__dirname, "..", "server.js")], { env: { ...process.env, PORT: String(PORT), POPSNAP_DATA: DATA }, stdio: ["ignore", "pipe", "pipe"] });
@@ -61,12 +65,16 @@ const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "booth-")); process.env.POPSN
     p = await j("/api/payment/qris", { templateId: "t35", discountCode: "HEMAT5" }); assert(p.status === 502 && /kasir tidak terjangkau/.test(p.body.error), p.status + JSON.stringify(p.body));
     q = await j("/api/discount/quote", { templateId: "t35" }); assert(q.body.unreachable === true && q.body.ok === false, JSON.stringify(q.body));
     kasirDown = false;
-    // 8) simulasi lunas (6 dtk) -> terkirim ke kasir dengan meta diskon & amount = yang dibayar
-    for (let i = 0; i < 40 && !pushed.find((t) => t.order_no === orderA); i++) await new Promise((r) => setTimeout(r, 500));
-    const t = pushed.find((x) => x.order_no === orderA);
+    // 8) transaksi uang asli yang lunas -> terkirim ke kasir dengan meta diskon & amount = yang dibayar
+    for (let i = 0; i < 40 && !pushed.find((t) => t.order_no === REAL); i++) await new Promise((r) => setTimeout(r, 500));
+    const t = pushed.find((x) => x.order_no === REAL);
     assert(t, "transaksi lunas harus terkirim ke kasir. log=" + log.slice(-300));
     assert(t.amount === 28000 && t.meta?.discount === 7000 && t.meta.gross_amount === 35000 && t.meta.promo_code === "HEMAT5" && /Promo Pagi/.test(t.meta.promo_name), JSON.stringify(t));
-    console.log("ok  diskon kasir: promo otomatis, kode benar/salah, harga dari server, kasir mati, meta terkirim ke kasir");
+    // 9) transaksi SIMULASI (is_test) sudah lunas di booth (6 dtk) tapi TIDAK boleh sampai ke kasir / hitungan pendapatan
+    await new Promise((r) => setTimeout(r, 9000));
+    assert(!pushed.find((x) => x.order_no === orderA), "transaksi simulasi tidak boleh dikirim ke kasir: " + JSON.stringify(pushed.map((x) => x.order_no)));
+    assert(pushed.every((x) => x.order_no === REAL), "hanya transaksi uang asli yang boleh terkirim: " + JSON.stringify(pushed.map((x) => x.order_no)));
+    console.log("ok  diskon kasir: promo otomatis, kode benar/salah, harga dari server, kasir mati, meta terkirim ke kasir, transaksi simulasi TIDAK terkirim");
     done(0);
   } catch (e) { console.error("GAGAL:", e.message, "\n--- log server ---\n" + log.slice(-600)); done(1); }
 })();

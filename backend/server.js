@@ -53,6 +53,18 @@ function getMidtrans() {
   return midtransCache.client;
 }
 
+/**
+ * True kalau QRIS yang dibuat SEKARANG bukan uang asli: mode simulasi, atau gateway (Midtrans / DOKU) masih Sandbox.
+ * Transaksi seperti ini ditandai is_test: tidak dikirim ke kasir dan tidak dihitung sebagai pendapatan.
+ */
+function isTestPayment() {
+  const q = settingsStore.load().payment.qris;
+  if (q.simulate) return true;
+  if (q.provider === "doku") return !q.doku?.isProduction;
+  const m = q.midtrans || {};
+  return !(m.serverKey ? m.isProduction : config.midtrans.isProduction);
+}
+
 // ---- Cek koneksi internet (di-cache 10 detik) ----
 // Dulu hanya menguji SATU alamat (api.midtrans.com) dengan batas 2,5 detik -> sering salah "offline" (DNS lambat, IPv6, antivirus,
 // atau satu situs sedang bermasalah). Sekarang beberapa alamat diuji BERSAMAAN; satu saja menjawab = online. Satu kali gagal
@@ -1323,7 +1335,7 @@ app.get("/api/admin/overview", requirePerm(), async (req, res) => {
     sessions: one("SELECT COUNT(*) c FROM sessions WHERE date(created_at,'localtime') = date('now','localtime')").c,
     vouchersCreated: one("SELECT COUNT(*) c FROM vouchers WHERE voided = 0 AND date(created_at,'localtime') = date('now','localtime')").c,
     vouchersUsed: one("SELECT COUNT(*) c FROM vouchers WHERE use_count > 0 AND date(used_at,'localtime') = date('now','localtime')").c,
-    qrisRevenue: one("SELECT COALESCE(SUM(gross_amount),0) t FROM payments WHERE status = 'paid' AND date(created_at,'localtime') = date('now','localtime')").t,
+    qrisRevenue: one("SELECT COALESCE(SUM(p.gross_amount),0) t FROM payments p LEFT JOIN tx_log x ON x.order_no = p.order_id WHERE p.status = 'paid' AND COALESCE(x.is_test, 0) = 0 AND date(p.created_at,'localtime') = date('now','localtime')").t,
   };
   const out = { payment: pay, event: settingsStore.load().event, today: req.user.permissions.includes("report.view") ? today : null, user: { username: req.user.username, role: req.user.role } };
   if (req.user.permissions.includes("tools.maintenance")) {
@@ -1828,7 +1840,8 @@ app.post("/api/payment/qris", async (req, res) => {
   // Nomor transaksi PB-<studio>-<tanggal>-<urut>: dipakai sebagai order_id Midtrans, id sesi, dan nomor di aplikasi kasir.
   const promoOut = promo ? { grossAmount: promo.gross, discount: promo.discount, promoName: promo.name } : {};
   const txMode = isPrint ? "addprint" : modeKey || "photo";
-  const newTx = () => cloud.create({ method: "qris", mode: txMode, templateId: orderTemplateId, amount: grossAmount, status: "pending",
+  const testPay = isTestPayment(); // dihitung SEKALI per pesanan: simulasi / sandbox = bukan uang asli
+  const newTx = () => cloud.create({ method: "qris", mode: txMode, templateId: orderTemplateId, amount: grossAmount, status: "pending", isTest: testPay,
     ...(promo ? { grossAmount: promo.gross, discount: promo.discount, promoCode: promo.code, promoName: promo.name } : {}) });
 
   // ---- Mode SIMULASI (hanya kalau diaktifkan manual di pengaturan) ----

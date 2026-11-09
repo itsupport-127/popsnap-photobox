@@ -258,7 +258,7 @@ function CloudCard({ cloud, onSaved }) {
                   <td className="pr-3">{r.method}</td>
                   <td className="pr-3 text-right">{rp(r.amount)}</td>
                   <td className={`pr-3 font-bold ${(STATUS[r.status] || [])[1] || ""}`}>{(STATUS[r.status] || [r.status])[0]}</td>
-                  <td>{r.kasir_deleted_at ? "dihapus di kasir" : r.status !== "paid" ? "-" : r.kasir_edited_at ? "✓ diedit di kasir" : r.synced ? "✓ terkirim" : r.sync_error ? `⚠ ${r.sync_error}` : "menunggu"}</td>
+                  <td>{r.is_test ? "TEST: tidak dikirim ke kasir" : r.kasir_deleted_at ? "dihapus di kasir" : r.status !== "paid" ? "-" : r.kasir_edited_at ? "✓ diedit di kasir" : r.synced ? "✓ terkirim" : r.sync_error ? `⚠ ${r.sync_error}` : "menunggu"}</td>
                 </tr>
               ))}
             </tbody>
