@@ -66,7 +66,7 @@ export default function PaymentScreen({ session, dispatch }) {
   // Layar "Waktu pembayaran habis" tidak boleh menunggu selamanya kalau tamu sudah pergi: kembali otomatis setelah 30 detik
   useEffect(() => {
     if (session.paymentStatus !== "expired") return;
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); // pembayaran sudah kedaluwarsa: hentikan pengecekan QRIS
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; } // pembayaran sudah kedaluwarsa: hentikan pengecekan QRIS
     const t = setTimeout(goBack, 30000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,7 +91,7 @@ export default function PaymentScreen({ session, dispatch }) {
   // nyasar setelah user udah pindah layar.
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
       if (paidTimerRef.current) clearTimeout(paidTimerRef.current);
     };
   }, []);
@@ -117,17 +117,24 @@ export default function PaymentScreen({ session, dispatch }) {
   function pollPayment(orderId) {
     if (!orderIdsRef.current.includes(orderId)) orderIdsRef.current.push(orderId);
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    pollIntervalRef.current = setInterval(async () => {
+    let polling = false;
+    const me = setInterval(async () => {
+      if (polling) return; // putaran sebelumnya belum selesai (jaringan lambat): jangan tumpang tindih
+      polling = true;
+      try {
       for (const id of [...orderIdsRef.current]) {
         const status = await checkPaymentStatus(id);
+        if (pollIntervalRef.current !== me) return; // sudah dihentikan / diganti saat menunggu: jangan mulai sesi dua kali
         if (status === "paid") {
-          clearInterval(pollIntervalRef.current);
+          clearInterval(me); pollIntervalRef.current = null;
           setQrisPaid(true);
           paidTimerRef.current = setTimeout(() => dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: id } }), 2200);
           return;
         }
       }
+      } finally { polling = false; }
     }, 2000);
+    pollIntervalRef.current = me;
   }
 
   // Keyboard fisik langsung mengisi kode tanpa klik kolom isian (berlaku di semua mode keyboard)

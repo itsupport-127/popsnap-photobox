@@ -103,6 +103,11 @@ async function paymentState() {
   return { mode, methods, online, onlineReason: online ? "" : onlineCache.reason, qrisConfigured: configured, simulate, notice };
 }
 
+// Satu kesalahan tak terduga (mis. file terkunci, jaringan putus di tengah) tidak boleh mematikan backend saat tamu sedang di booth.
+// Dicatat ke log; pemantau di aplikasi desktop tetap menyalakan ulang kalau backend benar-benar mati.
+process.on("uncaughtException", (err) => console.error("[fatal-dicegah] uncaughtException:", err && err.stack || err));
+process.on("unhandledRejection", (err) => console.error("[fatal-dicegah] unhandledRejection:", err && err.stack || err));
+
 const app = express();
 // Endpoint khusus KIOSK (jepret & live view kamera, cek voucher, PIN, sesi foto, QRIS, catatan cetak) tidak butuh login karena
 // dipanggil layar booth di PC ini. Karena itu hanya dilayani untuk permintaan dari PC booth sendiri: perangkat lain di WiFi studio
@@ -949,6 +954,11 @@ app.post("/api/templates/cleanup-orphaned-files", requirePerm("tools.maintenance
       if (filename) usedFilenames.add(filename);
     }
   }
+  // Foto mentah, klip Live, dan file sesi lain (tabel session_files) juga milik sesi: JANGAN ikut terhapus
+  for (const f of db.prepare("SELECT path FROM session_files").all()) {
+    const filename = f.path && f.path.split("/uploads/")[1];
+    if (filename) usedFilenames.add(filename);
+  }
   // Ikon kategori unggahan admin juga JANGAN ikut terhapus
   for (const c of db.prepare("SELECT icon FROM categories WHERE icon LIKE 'upload:%'").all()) {
     const filename = c.icon.split("/uploads/")[1];
@@ -965,16 +975,85 @@ app.post("/api/templates/cleanup-orphaned-files", requirePerm("tools.maintenance
   const uploadsDir = path.join(config.dataDir, "uploads");
   const allFiles = fs.readdirSync(uploadsDir);
   let deletedCount = 0;
+  const MIN_AGE_MS = 15 * 60 * 1000; // file baru (unggahan yang sedang berjalan / belum sempat tercatat) jangan disentuh
+  let skipped = 0;
   for (const filename of allFiles) {
-    if (filename === ".gitkeep") continue;
-    if (!usedFilenames.has(filename)) {
-      fs.unlinkSync(path.join(uploadsDir, filename));
+    if (filename === ".gitkeep" || usedFilenames.has(filename)) continue;
+    const fp = path.join(uploadsDir, filename);
+    try {
+      const st = fs.statSync(fp);
+      if (!st.isFile() || Date.now() - st.mtimeMs < MIN_AGE_MS) { skipped++; continue; }
+      fs.unlinkSync(fp);
       deletedCount++;
-    }
+    } catch (err) { skipped++; console.warn(`[cleanup-orphan] lewati ${filename}: ${err.code || err.message}`); }
   }
 
   logActivity(req.user, "files.cleanup", "file tidak terpakai", { dihapus: deletedCount }, req);
-  res.json({ ok: true, deletedCount });
+  res.json({ ok: true, deletedCount, skipped });
+});
+
+// ---------- PENYIMPANAN: ukuran folder + bersihkan arsip lama ----------
+// uploads = sementara (link QR, aset template; dihapus otomatis sesuai retensi). output = ARSIP PERMANEN per tanggal (tidak pernah dihapus otomatis).
+function dirStats(dir) {
+  let bytes = 0, files = 0;
+  const walk = (d) => {
+    let ents; try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const fp = path.join(d, e.name);
+      if (e.isDirectory()) walk(fp);
+      else if (e.isFile()) { try { bytes += fs.statSync(fp).size; files++; } catch { /* hilang saat dihitung */ } }
+    }
+  };
+  walk(dir);
+  return { bytes, files };
+}
+const DATE_DIR_RE = /^\d{4}-\d{2}-\d{2}$/;
+let storageCache = { at: 0, v: null };
+app.get("/api/storage", requirePerm("tools.maintenance"), (req, res) => {
+  if (!storageCache.v || Date.now() - storageCache.at > 20000 || req.query.fresh === "1") {
+    const out = outputDir();
+    const days = [];
+    try {
+      for (const d of fs.readdirSync(out)) {
+        if (!DATE_DIR_RE.test(d)) continue;
+        const st = dirStats(path.join(out, d));
+        let sessions = 0; try { sessions = fs.readdirSync(path.join(out, d), { withFileTypes: true }).filter((e) => e.isDirectory()).length; } catch { /* abaikan */ }
+        days.push({ date: d, bytes: st.bytes, sessions });
+      }
+    } catch { /* folder arsip belum ada */ }
+    days.sort((a, b) => (a.date < b.date ? 1 : -1));
+    const other = fs.existsSync(out) ? dirStats(out).bytes - days.reduce((n, x) => n + x.bytes, 0) : 0;
+    storageCache = { at: Date.now(), v: {
+      disk: diskInfo(),
+      uploads: dirStats(path.join(config.dataDir, "uploads")),
+      output: { path: out, bytes: days.reduce((n, x) => n + x.bytes, 0), sessions: days.reduce((n, x) => n + x.sessions, 0), otherBytes: Math.max(0, other), days: days.slice(0, 60), dayCount: days.length, oldest: days.length ? days[days.length - 1].date : null },
+      backups: dirStats(path.join(config.dataDir, "backups")),
+      library: dirStats(config.libraryDir),
+      retentionDays: config.fileRetentionDays,
+    } };
+  }
+  res.json(storageCache.v);
+});
+
+// Hapus folder tanggal di arsip yang lebih tua dari N hari. Hanya folder bernama YYYY-MM-DD; folder lain tidak disentuh.
+app.post("/api/storage/archive-cleanup", requirePerm("tools.maintenance"), (req, res) => {
+  const days = Math.floor(Number(req.body?.olderThanDays));
+  if (!Number.isFinite(days) || days < 7 || days > 3650) return res.status(400).json({ error: "Isi batas hari antara 7 dan 3650." });
+  const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - days);
+  const cutoff = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, "0")}-${String(cut.getDate()).padStart(2, "0")}`;
+  const out = outputDir();
+  let removedDays = 0, freed = 0, failed = 0;
+  try {
+    for (const d of fs.readdirSync(out)) {
+      if (!DATE_DIR_RE.test(d) || d >= cutoff) continue;
+      const dir = path.join(out, d);
+      const sz = dirStats(dir).bytes;
+      try { fs.rmSync(dir, { recursive: true, force: true }); removedDays++; freed += sz; } catch (err) { failed++; console.warn(`[arsip] gagal hapus ${d}: ${err.code || err.message}`); }
+    }
+  } catch (err) { return res.status(500).json({ error: `Folder arsip tidak bisa dibaca: ${err.code || err.message}` }); }
+  storageCache = { at: 0, v: null }; diskCache = { at: 0, v: null };
+  logActivity(req.user, "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: days, hariDihapus: removedDays, bytes: freed }, req);
+  res.json({ ok: true, removedDays, freedBytes: freed, failed, cutoff });
 });
 
 function formatTemplate(row) {
@@ -1815,6 +1894,7 @@ function mapMidtransStatus({ transaction_status, fraud_status }) {
 // PC booth ada di balik WiFi/router sehingga webhook Midtrans TIDAK bisa masuk —
 // jadi kalau masih pending, backend yang bertanya langsung ke Midtrans (dibatasi 1x/1.5 detik per order).
 const lastMidtransCheck = new Map();
+setInterval(() => { const t = Date.now() - 10 * 60 * 1000; for (const [k, v] of lastMidtransCheck) if (v < t) lastMidtransCheck.delete(k); }, 10 * 60 * 1000).unref?.(); // order yang tidak pernah selesai tidak menumpuk di memori
 app.get("/api/payment/status/:orderId", async (req, res) => {
   const orderId = req.params.orderId;
   let row = db.prepare("SELECT status, gateway_ref FROM payments WHERE order_id = ?").get(orderId);
@@ -1934,23 +2014,32 @@ async function syncToCloud() {
 cloud.setOnChanged(() => { syncToCloud(); }); // edit/hapus di kasir -> dashboard pusat ikut langsung, tidak menunggu 5 menit
 setInterval(syncToCloud, 5 * 60 * 1000);
 syncToCloud(); // langsung coba sekali pas backend baru nyala, gak nunggu 5 menit pertama
-// Jalan tiap 6 jam sekali, hapus session yang expires_at-nya sudah lewat.
-setInterval(() => {
-  const expired = db.prepare("SELECT * FROM sessions WHERE expires_at < datetime('now')").all();
-  for (const s of expired) {
-    const extra = db.prepare("SELECT path FROM session_files WHERE session_id = ?").all(s.id).map((r) => r.path);
-    for (const p of [s.final_image_path, s.gif_path, s.video_path, ...extra]) {
-      if (!p) continue;
-      const filePath = path.join(config.dataDir, p);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+// Hapus sesi yang masa simpannya sudah lewat. Jalan 30 detik setelah backend menyala lalu tiap 2 jam — PC booth sering dinyalakan
+// hanya beberapa jam per hari, jadi pembersihan "tiap 6 jam" bisa tidak pernah sempat jalan dan folder uploads menumpuk.
+// Satu file yang gagal dihapus (terkunci / izin) tidak boleh menghentikan yang lain, apalagi membuat backend crash.
+function cleanupExpiredSessions() {
+  try {
+    const nowIso = new Date().toISOString(); // expires_at disimpan format ISO ("...T..."), jangan dibandingkan dengan datetime('now') yang memakai spasi
+    const expired = db.prepare("SELECT * FROM sessions WHERE expires_at < ?").all(nowIso);
+    let removed = 0, failed = 0;
+    for (const s of expired) {
+      const extra = db.prepare("SELECT path FROM session_files WHERE session_id = ?").all(s.id).map((r) => r.path);
+      let ok = true;
+      for (const p of [s.final_image_path, s.gif_path, s.video_path, ...extra]) {
+        if (!p) continue;
+        const filePath = path.join(config.dataDir, p);
+        try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (err) { ok = false; console.warn(`[cleanup] gagal hapus ${p}: ${err.code || err.message}`); }
+      }
+      if (!ok) { failed++; continue; } // catatan dipertahankan, dicoba lagi di putaran berikut
+      db.prepare("DELETE FROM session_files WHERE session_id = ?").run(s.id);
+      db.prepare("DELETE FROM sessions WHERE id = ?").run(s.id);
+      removed++;
     }
-    db.prepare("DELETE FROM session_files WHERE session_id = ?").run(s.id);
-  }
-  if (expired.length) {
-    db.prepare("DELETE FROM sessions WHERE expires_at < datetime('now')").run();
-    console.log(`[cleanup] Hapus ${expired.length} sesi yang lewat retensi.`);
-  }
-}, 6 * 60 * 60 * 1000);
+    if (removed || failed) console.log(`[cleanup] Hapus ${removed} sesi yang lewat retensi${failed ? `, ${failed} ditunda (file terkunci)` : ""}.`);
+  } catch (err) { console.error("[cleanup] gagal:", err.message); }
+}
+setTimeout(cleanupExpiredSessions, 30 * 1000);
+setInterval(cleanupExpiredSessions, 2 * 60 * 60 * 1000);
 
 // ---------- CADANGAN DATABASE HARIAN ----------
 // Salinan konsisten (VACUUM INTO) database sesi, voucher, template, dan pengaturan ke <data>/backups/popsnap-TANGGAL.db, sekali sehari,
