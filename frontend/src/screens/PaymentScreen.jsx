@@ -111,14 +111,21 @@ export default function PaymentScreen({ session, dispatch }) {
     }
   }
 
+  // Semua QR yang pernah ditampilkan di layar ini tetap dipantau: kalau tamu terlanjur membayar QR lama (mis. sebelum mengetik kode diskon),
+  // sesinya tetap jalan, bukan "sudah bayar tapi tidak masuk".
+  const orderIdsRef = useRef([]);
   function pollPayment(orderId) {
+    if (!orderIdsRef.current.includes(orderId)) orderIdsRef.current.push(orderId);
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     pollIntervalRef.current = setInterval(async () => {
-      const status = await checkPaymentStatus(orderId);
-      if (status === "paid") {
-        clearInterval(pollIntervalRef.current);
-        setQrisPaid(true);
-        paidTimerRef.current = setTimeout(() => dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: orderId } }), 2200);
+      for (const id of [...orderIdsRef.current]) {
+        const status = await checkPaymentStatus(id);
+        if (status === "paid") {
+          clearInterval(pollIntervalRef.current);
+          setQrisPaid(true);
+          paidTimerRef.current = setTimeout(() => dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: id } }), 2200);
+          return;
+        }
       }
     }, 2000);
   }
