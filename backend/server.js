@@ -60,7 +60,11 @@ function getMidtrans() {
 function isTestPayment() {
   const q = settingsStore.load().payment.qris;
   if (q.simulate) return true;
-  if (q.provider === "doku") return !q.doku?.isProduction;
+  if (q.provider === "doku") {
+    // DOKU_BASE_URL (env) menimpa pilihan Sandbox/Production di pengaturan: yang menentukan uang asli atau bukan adalah alamat yang benar-benar dipakai
+    if (process.env.DOKU_BASE_URL) return /sandbox/i.test(process.env.DOKU_BASE_URL);
+    return !q.doku?.isProduction;
+  }
   const m = q.midtrans || {};
   return !(m.serverKey ? m.isProduction : config.midtrans.isProduction);
 }
