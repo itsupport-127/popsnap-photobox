@@ -115,7 +115,7 @@ db.exec(`
 
 // Perubahan dari kasir (edit/hapus transaksi). Baris tx_log TIDAK dihapus supaya nomor transaksi tidak terpakai ulang.
 ensureColumn("tx_log", "kasir_edited_at", "TEXT");
-// 1 = transaksi uji (mode simulasi QRIS / gateway Sandbox): TIDAK dikirim ke kasir dan TIDAK masuk hitungan pendapatan.
+// 1 = transaksi uji (mode simulasi QRIS / gateway Sandbox): tetap dikirim ke kasir (label TEST di riwayat) tapi TIDAK dihitung sebagai pendapatan.
 ensureColumn("tx_log", "is_test", "INTEGER NOT NULL DEFAULT 0");
 // Diskon kasir: harga normal, potongan, kode & nama promo (amount = harga yang benar-benar dibayar)
 ensureColumn("tx_log", "gross_amount", "INTEGER");

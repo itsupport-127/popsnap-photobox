@@ -70,11 +70,13 @@ const DATA = fs.mkdtempSync(path.join(os.tmpdir(), "booth-")); process.env.POPSN
     const t = pushed.find((x) => x.order_no === REAL);
     assert(t, "transaksi lunas harus terkirim ke kasir. log=" + log.slice(-300));
     assert(t.amount === 28000 && t.meta?.discount === 7000 && t.meta.gross_amount === 35000 && t.meta.promo_code === "HEMAT5" && /Promo Pagi/.test(t.meta.promo_name), JSON.stringify(t));
-    // 9) transaksi SIMULASI (is_test) sudah lunas di booth (6 dtk) tapi TIDAK boleh sampai ke kasir / hitungan pendapatan
-    await new Promise((r) => setTimeout(r, 9000));
-    assert(!pushed.find((x) => x.order_no === orderA), "transaksi simulasi tidak boleh dikirim ke kasir: " + JSON.stringify(pushed.map((x) => x.order_no)));
-    assert(pushed.every((x) => x.order_no === REAL), "hanya transaksi uang asli yang boleh terkirim: " + JSON.stringify(pushed.map((x) => x.order_no)));
-    console.log("ok  diskon kasir: promo otomatis, kode benar/salah, harga dari server, kasir mati, meta terkirim ke kasir, transaksi simulasi TIDAK terkirim");
+    // 9) transaksi SIMULASI (is_test) ikut terkirim ke kasir TAPI bertanda is_test (kasir menampilkan label TEST & tidak menghitungnya); yang asli bertanda false
+    for (let i = 0; i < 40 && !pushed.find((x) => x.order_no === orderA); i++) await new Promise((r) => setTimeout(r, 500));
+    const sim = pushed.find((x) => x.order_no === orderA);
+    assert(sim, "transaksi simulasi harus tetap terkirim ke kasir (riwayat). log=" + log.slice(-300));
+    assert(sim.is_test === true, "transaksi simulasi harus bertanda is_test: " + JSON.stringify(sim));
+    assert(t.is_test === false, "transaksi uang asli tidak boleh bertanda is_test: " + JSON.stringify(t));
+    console.log("ok  diskon kasir: promo otomatis, kode benar/salah, harga dari server, kasir mati, meta terkirim ke kasir, transaksi simulasi terkirim bertanda TEST");
     done(0);
   } catch (e) { console.error("GAGAL:", e.message, "\n--- log server ---\n" + log.slice(-600)); done(1); }
 })();

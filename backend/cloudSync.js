@@ -61,7 +61,7 @@ const MODE_NAME = { gif: "GIF", boomerang: "Boomerang", video: "Video", addprint
  * Catat transaksi baru.
  * @param {{orderNo?:string, method:'qris'|'voucher'|'free', mode?:string, templateId?:string, amount?:number, status?:string,
  *          voucherCode?:string, voucherRef?:string, sessionId?:string, isTest?:boolean}} t
- * isTest = uang tidak asli (simulasi / sandbox): disimpan di booth tapi tidak dikirim ke kasir dan tidak dihitung sebagai pendapatan.
+ * isTest = uang tidak asli (simulasi / sandbox): tetap dikirim ke kasir (muncul di riwayat dengan label TEST) tapi tidak dihitung sebagai pendapatan.
  */
 function create(t) {
   const orderNo = t.orderNo || newOrderNo();
@@ -150,6 +150,7 @@ function toPayload(r) {
     paid_at: r.paid_at, created_at: r.created_at, session_id: r.session_id,
     meta: r.voucher_ref || r.discount > 0 ? { ...(r.voucher_ref ? { kasir_reference: r.voucher_ref } : {}), ...(r.discount > 0 ? { gross_amount: r.gross_amount, discount: r.discount, promo_code: r.promo_code, promo_name: r.promo_name } : {}) } : null,
     gallery_url: galleryUrlFor(r.session_id),
+    is_test: !!r.is_test, // uang tidak asli (simulasi / sandbox): kasir menampilkannya dengan label TEST dan tidak menghitungnya sebagai pendapatan
   };
 }
 
@@ -170,7 +171,7 @@ async function post(path, body, method = "POST", timeoutMs = 15000) {
 }
 
 function pendingRows(limit = BATCH) {
-  return db.prepare(`SELECT * FROM tx_log WHERE status = 'paid' AND is_test = 0 AND kasir_deleted_at IS NULL AND (synced_at IS NULL OR updated_at > synced_at) ORDER BY created_at LIMIT ?`).all(limit);
+  return db.prepare(`SELECT * FROM tx_log WHERE status = 'paid' AND kasir_deleted_at IS NULL AND (synced_at IS NULL OR updated_at > synced_at) ORDER BY created_at LIMIT ?`).all(limit);
 }
 
 /** Kirim semua yang belum terkirim. force = abaikan jeda ulang setelah gagal (tombol "Kirim sekarang"). */
@@ -292,7 +293,7 @@ function todayRevenue(localDate) {
 function backfillGalleryLinks() {
   const KEY = "kasir_gallery_backfill_v1";
   if (db.prepare("SELECT 1 FROM app_settings WHERE key = ?").get(KEY)) return;
-  db.prepare(`UPDATE tx_log SET synced_at = NULL WHERE status = 'paid' AND is_test = 0 AND kasir_deleted_at IS NULL
+  db.prepare(`UPDATE tx_log SET synced_at = NULL WHERE status = 'paid' AND kasir_deleted_at IS NULL
     AND session_id IN (SELECT id FROM sessions WHERE share_token IS NOT NULL)`).run();
   db.prepare("INSERT INTO app_settings (key, value) VALUES (?, '1')").run(KEY);
 }
@@ -317,8 +318,8 @@ function status() {
   const count = (sql) => db.prepare(sql).get().n;
   return {
     enabled: !!c.enabled, configured: !!(baseUrl() && c.token), studioCode: c.studioCode || null,
-    pending: count("SELECT COUNT(*) n FROM tx_log WHERE status = 'paid' AND is_test = 0 AND kasir_deleted_at IS NULL AND (synced_at IS NULL OR updated_at > synced_at)"),
-    errors: count("SELECT COUNT(*) n FROM tx_log WHERE is_test = 0 AND sync_error IS NOT NULL AND updated_at <= synced_at"),
+    pending: count("SELECT COUNT(*) n FROM tx_log WHERE status = 'paid' AND kasir_deleted_at IS NULL AND (synced_at IS NULL OR updated_at > synced_at)"),
+    errors: count("SELECT COUNT(*) n FROM tx_log WHERE sync_error IS NOT NULL AND updated_at <= synced_at"),
     changesAppliedCount: pullState.applied, changesLastOkAt: pullState.lastOkAt, changesError: pullState.lastError,
     lastTryAt: state.lastTryAt, lastOkAt: state.lastOkAt || db.prepare("SELECT MAX(synced_at) v FROM tx_log").get().v || null, lastError: state.lastError,
   };
@@ -326,7 +327,7 @@ function status() {
 
 function recent(limit = 30) {
   return db.prepare("SELECT * FROM tx_log ORDER BY created_at DESC, order_no DESC LIMIT ?").all(Math.min(200, limit))
-    .map((r) => ({ ...r, is_test: !!r.is_test, synced: !r.is_test && !!r.synced_at && r.synced_at >= r.updated_at && !r.sync_error }));
+    .map((r) => ({ ...r, is_test: !!r.is_test, synced: !!r.synced_at && r.synced_at >= r.updated_at && !r.sync_error }));
 }
 
 let timer = null;
