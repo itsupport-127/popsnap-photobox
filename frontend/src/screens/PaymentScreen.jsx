@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import appConfig from "../config/appConfig";
 import useCountdown from "../hooks/useCountdown";
-import { createQrisPayment, checkPaymentStatus, validateVoucher } from "../services/paymentService";
+import { createQrisPayment, checkPaymentStatus, validateVoucher, quoteDiscount } from "../services/paymentService";
 import { getPublicSettings } from "../services/settingsService";
 import OnScreenKeyboard from "../components/OnScreenKeyboard";
 import useCodeEntry, { extractCode } from "../hooks/useCodeEntry";
@@ -30,15 +30,28 @@ export default function PaymentScreen({ session, dispatch }) {
   const [methods, setMethods] = useState(null); // null = lagi memeriksa; ["voucher"] / ["qris"] / ["voucher","qris"]
   const pollIntervalRef = useRef(null);
   const autoPickedRef = useRef(false);
+  // Diskon kasir (hanya kalau admin menyalakan & internet/kasir terhubung). quote = promo otomatis; codeRef = kode yang diketik tamu.
+  const [discountOn, setDiscountOn] = useState(false);
+  const [quote, setQuote] = useState(null);
+  const discountCodeRef = useRef("");
 
   // Cek metode bayar yang AKTIF saat ini (internet mati -> QRIS otomatis hilang, tinggal voucher)
   useEffect(() => {
     let cancelled = false;
     getPublicSettings()
-      .then((s) => { if (cancelled) return; setMethods(s.payment.methods); if (s.payment.qrisDown) setOffline(true); })
+      .then((s) => { if (cancelled) return; setDiscountOn(!!s.payment.discount); setMethods(s.payment.methods); if (s.payment.qrisDown) setOffline(true); })
       .catch(() => !cancelled && setMethods(["voucher"]));
     return () => { cancelled = true; };
   }, []);
+
+  // Promo otomatis kasir: tampilkan harga setelah promo di layar pilih metode (server menghitung ulang saat QRIS dibuat)
+  useEffect(() => {
+    if (!discountOn || session.mode !== "photo" && !session.price) return;
+    let cancelled = false;
+    quoteDiscount({ templateId: session.selectedTemplate?.id, mode: session.mode }).then((q) => { if (!cancelled && q?.enabled && q.ok && q.discount > 0) setQuote(q); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discountOn]);
 
   // Cuma 1 metode aktif -> langsung dipilih, konsumen gak perlu klik apa-apa lagi
   useEffect(() => {
@@ -83,12 +96,14 @@ export default function PaymentScreen({ session, dispatch }) {
     };
   }, []);
 
-  async function handleSelectQris() {
+  async function handleSelectQris(codeArg) {
+    // onClick mengirim event, bukan teks: hanya string yang dianggap kode diskon baru
+    if (typeof codeArg === "string") discountCodeRef.current = codeArg;
     dispatch({ type: "SELECT_PAYMENT_METHOD", payload: { method: "qris" } });
     setQrisError(null);
     setQrisData(null);
     try {
-      const payment = await createQrisPayment({ templateId: session.selectedTemplate?.id, mode: session.mode });
+      const payment = await createQrisPayment({ templateId: session.selectedTemplate?.id, mode: session.mode, discountCode: discountCodeRef.current });
       setQrisData(payment);
       pollPayment(payment.orderId);
     } catch (err) {
@@ -141,9 +156,20 @@ export default function PaymentScreen({ session, dispatch }) {
     const result = await validateVoucher(voucherInput, { templateId: session.selectedTemplate?.id, mode: session.mode });
     if (result.valid) {
       dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: result.orderNo || `VCH-${voucherInput}` } });
-    } else {
-      setVoucherError(result.reason || "Kode voucher tidak valid.");
+      return;
     }
+    // Bukan voucher bayar-di-kasir: coba sebagai KODE DISKON kasir (hanya kalau diskon dinyalakan & kasir terjangkau)
+    if (discountOn && /tidak ditemukan|tidak aktif/i.test(result.reason || "")) {
+      const q = await quoteDiscount({ templateId: session.selectedTemplate?.id, mode: session.mode, code: voucherInput.trim() });
+      if (q?.enabled && q.ok && q.code) {
+        setQuote(q);
+        return handleSelectQris(voucherInput.trim().toUpperCase()); // lanjut ke QR dengan harga setelah diskon
+      }
+      if (q?.enabled && (q.error || q.unreachable)) {
+        return setVoucherError(q.unreachable ? "Kode diskon belum bisa dicek (kasir tidak terjangkau). Coba lagi sebentar." : q.error);
+      }
+    }
+    setVoucherError(result.reason || "Kode voucher tidak valid.");
   }
 
   if (session.paymentStatus === "expired") {
@@ -162,7 +188,7 @@ export default function PaymentScreen({ session, dispatch }) {
   if (!session.paymentMethod && methods?.length > 1) {
     return (
       <PaymentSelect
-        priceText={price > 0 ? `${MODE_NAME[session.mode]} · Rp ${Number(price).toLocaleString("id-ID")}` : null}
+        priceText={price > 0 ? `${MODE_NAME[session.mode]} · ${quote?.discount > 0 && quote.final > 0 ? `Rp ${Number(quote.final).toLocaleString("id-ID")} (hemat Rp ${Number(quote.discount).toLocaleString("id-ID")})` : `Rp ${Number(price).toLocaleString("id-ID")}`}` : null}
         remaining={remaining}
         onBack={goBack}
         onQr={handleSelectQris}
@@ -181,6 +207,8 @@ export default function PaymentScreen({ session, dispatch }) {
         remaining={remaining}
         onBack={goBack}
         onRetry={handleSelectQris}
+        savings={qrisData?.discount > 0 ? { gross: qrisData.grossAmount, discount: qrisData.discount, name: qrisData.promoName } : null}
+        onUseCode={discountOn && !qrisPaid && !discountCodeRef.current ? () => dispatch({ type: "SELECT_PAYMENT_METHOD", payload: { method: "voucher" } }) : null}
       />
     );
   }
@@ -279,7 +307,7 @@ function PayFrame({ title, titleBox, panel, tray, trayRadius, timerPos, remainin
 }
 
 // Layar "Scan Here" (QRIS) + keadaan "Payment successful" setelah lunas
-function PaymentQr({ qrisData, qrisError, paid, remaining, onBack, onRetry, onUseVoucher }) {
+function PaymentQr({ qrisData, qrisError, paid, remaining, onBack, onRetry, onUseVoucher, savings, onUseCode }) {
   const shape = useShape();
   const portrait = shape === "portrait";
   const P = shape === "square"
@@ -298,7 +326,13 @@ function PaymentQr({ qrisData, qrisError, paid, remaining, onBack, onRetry, onUs
       timerPos={P.timerPos}
       remaining={remaining}
       onBack={paid ? null : onBack}
-      below={!paid && qrisData?.amount > 0 ? <p className="pay-amount" style={{ left: U(P.amount.left), width: U(648), top: U(P.amount.top), fontSize: U(34) }}>Rp {qrisData.amount.toLocaleString("id-ID")}</p> : null}
+      below={!paid && qrisData?.amount > 0 ? (
+        <>
+          <p className="pay-amount" style={{ left: U(P.amount.left), width: U(648), top: U(P.amount.top), fontSize: U(34) }}>Rp {qrisData.amount.toLocaleString("id-ID")}</p>
+          {savings && <p className="pay-amount" style={{ left: U(P.amount.left), width: U(648), top: U(P.amount.top + 52), fontSize: U(24), opacity: 0.9 }}>Hemat Rp {Number(savings.discount).toLocaleString("id-ID")}{savings.name ? ` · ${savings.name}` : ""}</p>}
+          {!savings && onUseCode && <button type="button" onClick={onUseCode} className="pay-amount" style={{ left: U(P.amount.left), width: U(648), top: U(P.amount.top + 52), fontSize: U(24), textDecoration: "underline", background: "none", border: 0, cursor: "pointer" }}>Punya kode diskon?</button>}
+        </>
+      ) : null}
     >
       {paid ? (
         <>

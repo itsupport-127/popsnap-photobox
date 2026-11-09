@@ -110,7 +110,7 @@ const app = express();
 // admin dari perangkat lain (sudah wajib login), integrasi kasir (API key), dan webhook pembayaran.
 // Butuh akses kiosk dari perangkat lain? Isi POPSNAP_ALLOW_LAN=1 di .env.
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
-const KIOSK_ONLY = ["/api/camera/", "/api/voucher/validate", "/api/kiosk/", "/api/session/", "/api/payment/qris", "/api/print/record"];
+const KIOSK_ONLY = ["/api/camera/", "/api/voucher/validate", "/api/discount/", "/api/kiosk/", "/api/session/", "/api/payment/qris", "/api/print/record"];
 app.use((req, res, next) => {
   if (process.env.POPSNAP_ALLOW_LAN === "1" || !KIOSK_ONLY.some((p) => req.path.startsWith(p))) return next();
   if (LOOPBACK.has(req.socket.remoteAddress)) return next();
@@ -1035,7 +1035,8 @@ app.get("/api/settings/public", async (req, res) => {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
-  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate) } });
+  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
+    discount: cloud.discountEnabled() && pay.methods.includes("qris") } });
 });
 
 // ---------- IZIN FOTO (SOSMED / DIPAJANG DI TOKO) ----------
@@ -1333,6 +1334,38 @@ function priceFor(templateId, mode) {
   const t = templateId ? db.prepare("SELECT price FROM templates WHERE id = ?").get(templateId) : null;
   return t?.price || 0;
 }
+
+// ---------- DISKON KASIR (promo otomatis + kode diskon dari menu Promo kasir) ----------
+// Hanya jalan kalau internet & kasir terjangkau (QRIS aktif) dan admin menyalakannya. Harga SELALU dihitung kasir, bukan browser.
+// Kasir mati/lambat: tanpa kode -> harga normal; dengan kode -> ditolak dengan pesan jelas (jangan diam-diam menagih penuh).
+let discountFails = [];
+async function discountFor(gross, code) {
+  if (!cloud.discountEnabled()) return { enabled: false };
+  try {
+    const q = await cloud.quoteDiscount(gross, code);
+    if (!q || typeof q.final !== "number") return { enabled: true, unreachable: true };
+    return { enabled: true, ...q };
+  } catch (err) {
+    console.warn("[diskon] kasir tidak terjangkau:", err.message);
+    return { enabled: true, unreachable: true };
+  }
+}
+const discountView = (q) => ({ enabled: q.enabled !== false, unreachable: !!q.unreachable, ok: q.ok !== false && !q.unreachable, error: q.error || null,
+  gross: q.gross ?? null, discount: q.discount || 0, final: q.final ?? null, capped: !!q.capped,
+  auto: q.auto ? { name: q.auto.name, discount: q.auto.discount } : null, code: q.code ? { code: q.code.code, name: q.code.name, discount: q.code.discount } : null });
+app.post("/api/discount/quote", async (req, res) => {
+  discountFails = discountFails.filter((t) => Date.now() - t < 60000);
+  const code = String(req.body?.code ?? "").trim().toUpperCase().slice(0, 40);
+  if (code && discountFails.length >= 10) return res.status(429).json({ enabled: true, ok: false, error: "Terlalu banyak percobaan. Tunggu sebentar atau minta bantuan kasir." });
+  const pay = await paymentState();
+  if (!pay.methods.includes("qris")) return res.json({ enabled: false });
+  const mode = ["gif", "boomerang", "video"].includes(req.body?.mode) ? req.body.mode : null;
+  const gross = mode ? settingsStore.load().general.modes[mode]?.price || 0 : priceFor(typeof req.body?.templateId === "string" ? req.body.templateId : null, "photo");
+  if (!(gross > 0)) return res.json({ enabled: false });
+  const q = await discountFor(gross, code);
+  if (code && q.enabled && (q.ok === false || q.unreachable)) discountFails.push(Date.now());
+  res.json(discountView(q));
+});
 
 // Batas percobaan salah (anti tebak-tebak kode): maks 10 kegagalan per menit
 let voucherFails = [];
@@ -1700,9 +1733,24 @@ app.post("/api/payment/qris", async (req, res) => {
       return res.status(400).json({ error: "Template ini belum diatur harganya. Set harga dulu di Template Editor sebelum bisa menerima pembayaran QRIS." });
     }
   }
+  // Diskon kasir (promo otomatis + kode): dihitung ulang di sini, jadi tidak bisa dipalsukan dari layar. Add Print tidak diskon.
+  let promo = null;
+  const wantCode = String(req.body?.discountCode ?? "").trim().toUpperCase().slice(0, 40);
+  if (!isPrint) {
+    const dq = await discountFor(grossAmount, wantCode);
+    if (dq.enabled && wantCode && (dq.unreachable || dq.ok === false)) {
+      return res.status(dq.unreachable ? 502 : 400).json({ error: dq.unreachable ? "Diskon belum bisa dicek karena kasir tidak terjangkau. Coba lagi sebentar, atau bayar tanpa kode." : dq.error || "Kode diskon tidak valid." });
+    }
+    if (dq.enabled && dq.ok !== false && !dq.unreachable && dq.discount > 0 && dq.final >= 1000 && dq.final < grossAmount) {
+      promo = { gross: grossAmount, discount: dq.discount, final: dq.final, code: dq.code?.code || null, name: [dq.auto?.name, dq.code?.name].filter(Boolean).join(" + ") || null };
+      grossAmount = dq.final; // yang ditagihkan ke QRIS & dicatat sebagai pendapatan
+    }
+  }
   // Nomor transaksi PB-<studio>-<tanggal>-<urut>: dipakai sebagai order_id Midtrans, id sesi, dan nomor di aplikasi kasir.
+  const promoOut = promo ? { grossAmount: promo.gross, discount: promo.discount, promoName: promo.name } : {};
   const txMode = isPrint ? "addprint" : modeKey || "photo";
-  const newTx = () => cloud.create({ method: "qris", mode: txMode, templateId: orderTemplateId, amount: grossAmount, status: "pending" });
+  const newTx = () => cloud.create({ method: "qris", mode: txMode, templateId: orderTemplateId, amount: grossAmount, status: "pending",
+    ...(promo ? { grossAmount: promo.gross, discount: promo.discount, promoCode: promo.code, promoName: promo.name } : {}) });
 
   // ---- Mode SIMULASI (hanya kalau diaktifkan manual di pengaturan) ----
   if (settingsStore.load().payment.qris.simulate) {
@@ -1712,7 +1760,7 @@ app.post("/api/payment/qris", async (req, res) => {
       db.prepare("UPDATE payments SET status = 'paid' WHERE order_id = ?").run(orderId);
       cloud.setStatus(orderId, "paid");
     }, 6000);
-    return res.json({ orderId, qrString: `SIMULATED-QRIS-${orderId}`, amount: grossAmount, simulated: true });
+    return res.json({ orderId, qrString: `SIMULATED-QRIS-${orderId}`, amount: grossAmount, ...promoOut, simulated: true });
   }
 
   // ---- DOKU QRIS (SNAP) ----
@@ -1722,7 +1770,7 @@ app.post("/api/payment/qris", async (req, res) => {
       try {
         const g = await doku.generate({ orderNo: orderId, amount: grossAmount, minutes: 15 });
         db.prepare("INSERT INTO payments (order_id, template_id, gross_amount, status, gateway_ref) VALUES (?, ?, ?, 'pending', ?)").run(orderId, orderTemplateId, grossAmount, g.referenceNo);
-        return res.json({ orderId, qrString: g.qrContent, amount: grossAmount });
+        return res.json({ orderId, qrString: g.qrContent, amount: grossAmount, ...promoOut });
       } catch (err) {
         cloud.setStatus(orderId, "failed");
         if (/duplicate|already|sudah|4040/i.test(err.message) && attempt < 3) continue;
@@ -1746,7 +1794,7 @@ app.post("/api/payment/qris", async (req, res) => {
       db.prepare("INSERT INTO payments (order_id, template_id, gross_amount, status) VALUES (?, ?, ?, 'pending')").run(orderId, orderTemplateId, grossAmount);
 
       const qrAction = chargeResponse.actions?.find((a) => a.name === "generate-qr-code");
-      return res.json({ orderId, qrImageUrl: qrAction?.url, amount: grossAmount });
+      return res.json({ orderId, qrImageUrl: qrAction?.url, amount: grossAmount, ...promoOut });
     } catch (err) {
       cloud.setStatus(orderId, "failed");
       const duplicate = /already|duplicate|sudah/i.test(`${err.message} ${err.ApiResponse?.status_message ?? ""}`);

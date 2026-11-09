@@ -180,7 +180,7 @@ const rp = (n) => `Rp ${Number(n || 0).toLocaleString("id-ID")}`;
 
 /** Sinkron riwayat transaksi ke aplikasi kasir online. Nomor transaksi dibuat booth dan sama persis di kasir. */
 function CloudCard({ cloud, onSaved }) {
-  const [f, setF] = useState({ enabled: cloud.enabled, url: cloud.url, token: "", studioCode: cloud.studioCode, countVoucherRevenue: cloud.countVoucherRevenue });
+  const [f, setF] = useState({ enabled: cloud.enabled, url: cloud.url, token: "", studioCode: cloud.studioCode, countVoucherRevenue: cloud.countVoucherRevenue, discountEnabled: !!cloud.discountEnabled });
   const [info, setInfo] = useState(null);
   const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState(null); // { tone, text }
@@ -235,6 +235,7 @@ function CloudCard({ cloud, onSaved }) {
       <p className="text-[12px] text-[#6B7684] mt-2">Token dibuat di aplikasi kasir: menu <b>Transaksi Photobox</b> &gt; tambah studio. Kode studio harus unik per studio; sesudah dipakai sebaiknya tidak diganti.</p>
       <div className="mt-3">
         <Toggle checked={f.countVoucherRevenue} onChange={(v) => setF({ ...f, countVoucherRevenue: v })} label="Hitung voucher sebagai pendapatan photobox" hint="Biarkan mati kalau pelanggan membayar voucher di kasir (pendapatannya sudah tercatat di transaksi kasir). Nyalakan hanya jika voucher dibuat tanpa transaksi kasir." />
+        <Toggle checked={f.discountEnabled} onChange={(v) => setF({ ...f, discountEnabled: v })} label="Pakai diskon dari kasir (bayar QRIS)" hint="Promo otomatis kasir langsung memotong harga, dan tamu bisa mengetik kode diskon (dari menu Promo kasir) di layar Voucher. Hanya jalan saat internet & kasir terhubung; kalau offline, tamu tetap bisa pakai voucher bayar-di-kasir seperti biasa. Yang berlaku: diskon biasa (persen/nominal) untuk semua produk." />
       </div>
       <div className="flex flex-wrap items-center gap-2 mt-4">
         <Btn variant="primary" onClick={save} disabled={busy}>Simpan</Btn>

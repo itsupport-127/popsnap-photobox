@@ -115,6 +115,11 @@ db.exec(`
 
 // Perubahan dari kasir (edit/hapus transaksi). Baris tx_log TIDAK dihapus supaya nomor transaksi tidak terpakai ulang.
 ensureColumn("tx_log", "kasir_edited_at", "TEXT");
+// Diskon kasir: harga normal, potongan, kode & nama promo (amount = harga yang benar-benar dibayar)
+ensureColumn("tx_log", "gross_amount", "INTEGER");
+ensureColumn("tx_log", "discount", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("tx_log", "promo_code", "TEXT");
+ensureColumn("tx_log", "promo_name", "TEXT");
 ensureColumn("tx_log", "kasir_deleted_at", "TEXT");
 ensureColumn("tx_log", "gallery_purged", "INTEGER NOT NULL DEFAULT 0"); // 0 = galeri belum dibersihkan, 1 = sudah / tidak ada
 

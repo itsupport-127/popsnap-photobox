@@ -68,11 +68,14 @@ function create(t) {
   const mode = t.mode || "photo";
   const status = t.status || "pending";
   const at = nowIso();
-  db.prepare(`INSERT INTO tx_log (order_no, method, mode, template_id, template_name, category, voucher_code, voucher_ref, amount, status, session_id, created_at, paid_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+  const disc = Math.max(0, Math.round(t.discount || 0));
+  db.prepare(`INSERT INTO tx_log (order_no, method, mode, template_id, template_name, category, voucher_code, voucher_ref, amount, status, session_id, created_at, paid_at, updated_at,
+      gross_amount, discount, promo_code, promo_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     orderNo, t.method, mode, t.templateId ?? null,
     tpl.name ?? (MODE_NAME[mode] ? `Mode ${MODE_NAME[mode]}` : null), tpl.category,
     t.voucherCode ?? null, t.voucherRef ?? null, Math.max(0, Math.round(t.amount || 0)), status, t.sessionId ?? null, at, status === "paid" ? at : null, at,
+    disc > 0 ? Math.round(t.grossAmount || 0) : null, disc, disc > 0 ? t.promoCode ?? null : null, disc > 0 ? t.promoName ?? null : null,
   );
   nudge();
   return orderNo;
@@ -143,14 +146,14 @@ function toPayload(r) {
     order_no: r.order_no, template_id: r.template_id, template_name: r.template_name, category: r.category,
     mode: r.mode, method: r.method, voucher_code: r.voucher_code, amount: r.amount, status: r.status,
     paid_at: r.paid_at, created_at: r.created_at, session_id: r.session_id,
-    meta: r.voucher_ref ? { kasir_reference: r.voucher_ref } : null,
+    meta: r.voucher_ref || r.discount > 0 ? { ...(r.voucher_ref ? { kasir_reference: r.voucher_ref } : {}), ...(r.discount > 0 ? { gross_amount: r.gross_amount, discount: r.discount, promo_code: r.promo_code, promo_name: r.promo_name } : {}) } : null,
     gallery_url: galleryUrlFor(r.session_id),
   };
 }
 
-async function post(path, body, method = "POST") {
+async function post(path, body, method = "POST", timeoutMs = 15000) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(`${baseUrl()}/api/photobox${path}`, {
       method,
@@ -333,4 +336,11 @@ function start() {
   setTimeout(tick, 5000);
 }
 
-module.exports = { create, setStatus, attachSession, newOrderNo, pushPending, pullChanges, applyChange, purgeGalleries, todayRevenue, setOnChanged, backfillGalleryLinks, testConnection, status, recent, start, ready };
+/** Tanya kasir: potongan harga (promo otomatis + kode diskon). Hanya membaca. Melempar error kalau kasir tidak terjangkau. */
+async function quoteDiscount(amount, code) {
+  if (!ready()) throw new Error("Integrasi kasir belum aktif.");
+  return post("/discount/quote", { amount: Math.round(amount), code: code || undefined }, "POST", 6000);
+}
+function discountEnabled() { return !!cfg().discountEnabled && ready(); }
+
+module.exports = { quoteDiscount, discountEnabled, create, setStatus, attachSession, newOrderNo, pushPending, pullChanges, applyChange, purgeGalleries, todayRevenue, setOnChanged, backfillGalleryLinks, testConnection, status, recent, start, ready };

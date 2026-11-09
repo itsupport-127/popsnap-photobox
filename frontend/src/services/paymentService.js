@@ -10,11 +10,11 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /** Mode foto: kirim templateId. Mode GIF/Boomerang/Video: kirim mode (harga diambil server dari pengaturan). */
-export async function createQrisPayment({ templateId, mode }) {
+export async function createQrisPayment({ templateId, mode, discountCode }) {
   const res = await fetch(`${API_BASE}/api/payment/qris`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(mode && mode !== "photo" ? { mode } : { templateId }),
+    body: JSON.stringify({ ...(mode && mode !== "photo" ? { mode } : { templateId }), ...(discountCode ? { discountCode } : {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Gagal membuat QRIS.");
@@ -55,5 +55,22 @@ export async function validateVoucher(code, { templateId, mode } = {}) {
     return { valid: data.valid === true, reason: data.reason, orderNo: data.orderNo || null };
   } catch {
     return { valid: false, reason: "Tidak bisa terhubung ke sistem booth. Hubungi kasir." };
+  }
+}
+
+/**
+ * Potongan harga dari kasir (promo otomatis + kode diskon). Hanya menanyakan, tidak memakai kuota.
+ * @returns {Promise<{enabled:boolean, ok:boolean, unreachable?:boolean, error?:string|null, gross?:number, discount?:number, final?:number, auto?:{name:string,discount:number}|null, code?:{code:string,name:string,discount:number}|null}>}
+ */
+export async function quoteDiscount({ templateId, mode, code } = {}) {
+  try {
+    const res = await fetch(`${API_BASE}/api/discount/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...(mode && mode !== "photo" ? { mode } : { templateId }), ...(code ? { code } : {}) }),
+    });
+    return await res.json();
+  } catch {
+    return { enabled: false, ok: false };
   }
 }

@@ -172,7 +172,7 @@ const DEFAULTS = {
     },
     pos: { apiKey: "" },
     // Sinkron riwayat transaksi ke aplikasi kasir (lihat cloudSync.js). Token dibuat di kasir: menu Transaksi Photobox > Studio.
-    cloud: { enabled: false, url: "", token: "", studioCode: "", countVoucherRevenue: false, galleryEnabled: false, galleryUrl: "" }, // galleryUrl = alamat POPSNAP Galeri (halaman QR + cloud), lihat gallerySync.js
+    cloud: { enabled: false, url: "", token: "", studioCode: "", countVoucherRevenue: false, discountEnabled: false, galleryEnabled: false, galleryUrl: "" }, // galleryUrl = alamat POPSNAP Galeri (halaman QR + cloud), lihat gallerySync.js
   },
 };
 
@@ -522,6 +522,7 @@ function update(patch) {
       if (c.clearToken === true) nc.token = "";
       if (typeof c.studioCode === "string") nc.studioCode = c.studioCode.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
       if (typeof c.countVoucherRevenue === "boolean") nc.countVoucherRevenue = c.countVoucherRevenue;
+      if (typeof c.discountEnabled === "boolean") nc.discountEnabled = c.discountEnabled;
       if (typeof c.galleryEnabled === "boolean") nc.galleryEnabled = c.galleryEnabled;
       if (typeof c.galleryUrl === "string") { const g = c.galleryUrl.trim().replace(/\/+$/, "").slice(0, 200); nc.galleryUrl = g === "" || /^https?:\/\/[^\s/]+/.test(g) ? g : nc.galleryUrl; }
     }

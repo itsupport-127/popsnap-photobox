@@ -1,7 +1,7 @@
 {
   "format": "popsnap-library-settings",
   "version": 1,
-  "savedAt": "2026-11-07T10:50:11.307Z",
+  "savedAt": "2026-11-09T09:04:08.777Z",
   "settings": {
     "event": {
       "name": "POPSNAP",
@@ -112,6 +112,7 @@
         "guide": true,
         "fitTemplate": false,
         "frameMode": "camera",
+        "thumbMode": "ratio",
         "brightness": 100,
         "autoBright": true,
         "canonAutoExposure": true,
