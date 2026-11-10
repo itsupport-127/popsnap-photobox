@@ -1172,6 +1172,7 @@ function copyMissing(from, to) { // salin hanya file yang belum ada / beda ukura
     else { try { if (!fs.existsSync(b) || fs.statSync(b).size !== fs.statSync(a).size) fs.copyFileSync(a, b); } catch { /* file sedang ditulis: coba lagi nanti */ } }
   }
 }
+const socialSeen = new Map(); // id -> izin terakhir yang sudah disinkron di sesi aplikasi ini (supaya membuka daftar tidak memindai folder berulang)
 function syncSocial(id) {
   const row = db.prepare("SELECT social_consent FROM sessions WHERE id = ?").get(id);
   const f = findSessionFolder(id);
@@ -1198,6 +1199,7 @@ function syncSocial(id) {
     dropOld(root, want);
     if (want) { try { fs.mkdirSync(path.join(root, want), { recursive: true }); } catch { /* abaikan */ } }
   }
+  socialSeen.set(id, String(v));
   gallery.pushSocial(id, f.dir).catch(() => {});
 }
 // File GIF / video / klip menyusul beberapa saat setelah sesi selesai -> sinkron ulang beberapa kali
@@ -1211,7 +1213,7 @@ app.get("/api/social/list", requirePerm("settings.manage"), (req, res) => {
   const rows = db.prepare(`SELECT id, mode, final_image_path, gif_path, video_path, share_token, social_consent, created_at FROM sessions WHERE ${cond} AND created_at >= datetime('now', ?) ORDER BY created_at DESC LIMIT 500`).all(`-${days} days`);
   const items = rows.map((r) => {
     const f = findSessionFolder(r.id);
-    try { syncSocial(r.id); } catch { /* abaikan */ } // melengkapi penanda folder untuk sesi lama (semua status izin)
+    if (socialSeen.get(r.id) !== String(r.social_consent)) { try { syncSocial(r.id); } catch { /* abaikan */ } } // melengkapi penanda folder untuk sesi lama (semua status izin), cukup sekali per perubahan izin
     const main = r.final_image_path || r.gif_path || r.video_path;
     return { id: r.id, mode: r.mode, consent: r.social_consent, createdAt: r.created_at, previewUrl: main ? publicFileUrl(main) : null, isVideo: !r.final_image_path && !r.gif_path && !!r.video_path, folder: f ? f.dir : null };
   });
