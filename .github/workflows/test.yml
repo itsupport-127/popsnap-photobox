@@ -1,0 +1,37 @@
+name: Tes photobox
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Backend - pasang dependency
+        working-directory: backend
+        run: npm ci
+      - name: Backend - jalankan semua tes
+        working-directory: backend
+        run: |
+          for t in test/*.js; do
+            echo "== $t"
+            timeout 240 node "$t" || exit 1
+          done
+      - name: Frontend - pasang dependency & build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Cek celah keamanan dependency (backend)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
