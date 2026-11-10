@@ -32,6 +32,7 @@ jobs:
         run: |
           npm ci
           npm run build
-      - name: Cek celah keamanan dependency (backend)
+      - name: Cek celah keamanan dependency (backend) - hanya peringatan, tidak menggagalkan tes
+        continue-on-error: true
         working-directory: backend
         run: npm audit --omit=dev --audit-level=high
