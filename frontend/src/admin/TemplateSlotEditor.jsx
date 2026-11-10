@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import useCategories from "../hooks/useCategories";
 import { slotColor } from "../utils/slotColors";
 import CategoryManager from "./CategoryManager";
@@ -758,9 +759,17 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
 
       {/* Title bar */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-[#F4F7FA] text-[12px]">
-        <div className="flex items-center gap-4">
-          <button onClick={() => goTo("/admin")} className="text-[#262A38] hover:text-[#E02843]">← Menu Admin</button>
-          <span>TEMPLATE EDITOR</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => goTo("/admin")}
+            title="Kembali ke Menu Admin"
+            className="group inline-flex items-center gap-1.5 h-7 pl-2 pr-3 bg-white border border-[#C7D0DA] text-[#262A38] font-medium transition-colors hover:border-[#E02843] hover:bg-[#FFF5F6] hover:text-[#E02843] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E02843]/40 active:bg-[#FDE8EA]"
+          >
+            <ArrowLeft size={14} strokeWidth={2.25} className="transition-transform group-hover:-translate-x-0.5" />
+            Menu Admin
+          </button>
+          <span className="h-4 w-px bg-[#C7D0DA]" aria-hidden="true" />
+          <span className="font-semibold tracking-wide text-[#181B23]">TEMPLATE EDITOR</span>
         </div>
         <div className="relative">
           <button onClick={() => setUserMenuOpen((v) => !v)} className="flex items-center gap-1 text-[#262A38] hover:text-[#E02843]">
