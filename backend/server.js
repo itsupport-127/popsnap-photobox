@@ -106,12 +106,13 @@ async function paymentState() {
 
   let methods;
   let notice = null;
-  if (mode === "voucher") methods = ["voucher"];
+  if (mode === "none") methods = ["free"]; // tanpa layar bayar: tamu langsung ke sesi foto
+  else if (mode === "voucher") methods = ["voucher"];
   else if (mode === "qris") methods = qrisUsable ? ["qris"] : ["voucher"];
   else if (mode === "both") methods = qrisUsable ? ["voucher", "qris"] : ["voucher"];
   else methods = qrisUsable ? ["voucher", "qris"] : ["voucher"]; // auto
 
-  if (mode !== "voucher" && !qrisUsable) {
+  if (mode !== "voucher" && mode !== "none" && !qrisUsable) {
     notice = !configured && !simulate
       ? `QRIS belum dikonfigurasi (${useDoku ? "data DOKU belum lengkap" : "Midtrans server key kosong"}), jadi booth memakai voucher.`
       : "Internet sedang mati, jadi booth otomatis memakai voucher (bayar di kasir).";
@@ -1130,7 +1131,7 @@ app.get("/api/settings/public", async (req, res) => {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
-  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, testPayment: pay.mode !== "voucher" && !!pay.qrisConfigured && !pay.simulate && isTestPayment(), qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
+  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, free: pay.mode === "none", methods: pay.methods, online: pay.online, simulate: !!pay.simulate, testPayment: pay.mode !== "voucher" && pay.mode !== "none" && !!pay.qrisConfigured && !pay.simulate && isTestPayment(), qrisDown: pay.mode !== "voucher" && pay.mode !== "none" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
     discount: cloud.discountEnabled() && pay.methods.includes("qris") } });
 });
 

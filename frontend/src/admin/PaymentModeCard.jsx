@@ -8,9 +8,10 @@ const MODES = [
   { id: "auto", title: "Otomatis", desc: "Online: voucher + QRIS. Internet mati: otomatis voucher saja." },
   { id: "both", title: "Voucher + QRIS", desc: "Konsumen pilih sendiri. QRIS hilang otomatis kalau internet mati." },
   { id: "qris", title: "QRIS saja", desc: "Semua bayar lewat payment gateway. Butuh internet." },
+  { id: "none", title: "Tanpa pembayaran", desc: "Booth hanya untuk foto, tanpa layar bayar. Bayar di aplikasi kasir; sesi tetap tercatat di kasir (Gratis) lengkap dengan link galeri & kirim WhatsApp." },
 ];
 
-const METHOD_LABEL = { voucher: "Voucher", qris: "QRIS" };
+const METHOD_LABEL = { voucher: "Voucher", qris: "QRIS", free: "Tanpa pembayaran (bayar di kasir)" };
 
 /** Dipakai di halaman depan admin DAN halaman Pembayaran. Admin & kasir boleh mengubahnya. */
 export default function PaymentModeCard({ canEdit = true }) {

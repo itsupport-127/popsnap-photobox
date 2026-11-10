@@ -161,6 +161,7 @@ const DEFAULTS = {
   },
   payment: {
     // voucher = bayar di kasir (offline) | qris = payment gateway | both | auto = QRIS saat online, voucher saat offline
+    // none = TANPA pembayaran di booth: booth hanya untuk foto, bayarnya di aplikasi kasir. Sesi tetap tercatat di kasir (metode "free", Rp 0) lengkap dengan link galeri.
     mode: "auto",
     voucherExpiryHours: 24,
     qris: {
@@ -176,7 +177,7 @@ const DEFAULTS = {
   },
 };
 
-const PAYMENT_MODES = ["voucher", "qris", "both", "auto"];
+const PAYMENT_MODES = ["voucher", "qris", "both", "auto", "none"];
 
 function isObj(v) { return v && typeof v === "object" && !Array.isArray(v); }
 

@@ -48,7 +48,8 @@ async function runChecks() {
   if (pay.simulate) add("Simulasi pembayaran", "bad", "Simulasi pembayaran MASIH AKTIF: QRIS dianggap lunas tanpa uang masuk.", "Pembayaran > QRIS, matikan \"Simulasi\" sebelum studio dibuka.");
   // Gateway masih Sandbox = uang tidak asli: transaksi berlabel TEST di kasir dan TIDAK dihitung sebagai pendapatan
   if (pay.testPayment) add("Gateway pembayaran", "bad", "Gateway QRIS masih SANDBOX (uji coba): uang tamu tidak masuk, dan transaksi berlabel TEST di kasir (tidak dihitung pendapatan).", "Pembayaran > QRIS, pilih mode Production sebelum studio dibuka.");
-  if (pay.mode === "voucher") add("Pembayaran", "ok", "Mode voucher (bayar di kasir).");
+  if (pay.mode === "none") add("Pembayaran", "ok", "Mode tanpa pembayaran: booth hanya untuk foto, bayar di aplikasi kasir.");
+  else if (pay.mode === "voucher") add("Pembayaran", "ok", "Mode voucher (bayar di kasir).");
   else if (pay.qrisDown) add("Pembayaran", "warn", "QRIS belum bisa dipakai (offline atau belum diatur). Tamu diminta menghubungi CS.", "Cek internet dan Pembayaran > QRIS.");
   else add("Pembayaran", "ok", "QRIS siap.");
   // Simulasi QRIS = pembayaran palsu (dianggap lunas dalam 6 detik): berbahaya di booth sungguhan. Hanya admin yang boleh membaca pengaturan ini.

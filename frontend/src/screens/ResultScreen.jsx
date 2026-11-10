@@ -341,7 +341,8 @@ export default function ResultScreen({ session, dispatch }) {
 
         {/* Tombol akhir (desain): Add Print (merah) + Finish (hijau) berdampingan di bawah QR */}
         {(() => {
-          const showAdd = canPrint && pcfg.showButton && !!finalImage && !(offline && pcfg.price > 0); // Add Print berbayar butuh internet (QRIS)
+          const noPay = !!appConfig.settings?.payment?.free; // mode tanpa pembayaran: tidak ada cara bayar di booth, jadi cetak tambahan BERBAYAR disembunyikan (cetak gratis tetap ada)
+          const showAdd = canPrint && pcfg.showButton && !!finalImage && !(offline && pcfg.price > 0) && !(noPay && pcfg.price > 0); // Add Print berbayar butuh internet (QRIS)
           const showFin = !sharing.hideDone;
           const aw = P(297, 250), fw = P(260, 220), bh = P(69, 64), gap = P(103, 40), fs = P(40, 34);
           const total = (showAdd ? aw : 0) + (showAdd && showFin ? gap : 0) + (showFin ? fw : 0);

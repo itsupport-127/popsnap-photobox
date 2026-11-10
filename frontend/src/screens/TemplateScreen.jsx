@@ -6,6 +6,7 @@ import logo from "../assets/logo-popsnap.png";
 import StepBadge from "../components/StepBadge";
 import useShape from "../hooks/useShape";
 import GroupIcon from "../components/GroupIcon";
+import appConfig from "../config/appConfig";
 
 /**
  * Tahap 2 & 3: Pilih kelompok template, lalu pilih template di dalamnya.
@@ -125,7 +126,7 @@ function TemplateList({ session, dispatch, templates, category }) {
                     style={{ height: U(Math.min(L.cardH, L.cardMaxW / ((tpl.canvasWidth || 1200) / (tpl.canvasHeight || 1800)))), aspectRatio: `${tpl.canvasWidth || 1200} / ${tpl.canvasHeight || 1800}` }}
                   >
                     <TemplatePreview template={tpl} className="w-full h-full" style={{ width: "100%" }} />
-                    {tpl.price > 0 && <span className="strip-price" style={{ fontSize: U(L.price), marginTop: U(12) }}>Rp {tpl.price.toLocaleString("id-ID")}</span>}
+                    {tpl.price > 0 && !appConfig.settings?.payment?.free && <span className="strip-price" style={{ fontSize: U(L.price), marginTop: U(12) }}>Rp {tpl.price.toLocaleString("id-ID")}</span>}
                   </button>
                 );
               })}

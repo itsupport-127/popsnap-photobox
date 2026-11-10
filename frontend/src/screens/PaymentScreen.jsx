@@ -57,6 +57,11 @@ export default function PaymentScreen({ session, dispatch }) {
   useEffect(() => {
     if (!methods || methods.length !== 1 || session.paymentMethod || autoPickedRef.current) return;
     autoPickedRef.current = true;
+    if (methods[0] === "free") { // mode tanpa pembayaran: lewati layar bayar, langsung lanjut (bayarnya di aplikasi kasir)
+      dispatch({ type: "SELECT_PAYMENT_METHOD", payload: { method: "free" } });
+      dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: crypto.randomUUID() } });
+      return;
+    }
     if (methods[0] === "qris") handleSelectQris();
     else dispatch({ type: "SELECT_PAYMENT_METHOD", payload: { method: "voucher" } });
   }, [methods, session.paymentMethod]);
@@ -185,6 +190,8 @@ export default function PaymentScreen({ session, dispatch }) {
     }
     setVoucherError(result.reason || "Kode voucher tidak valid.");
   }
+
+  if (methods?.[0] === "free") return null; // tanpa pembayaran: tidak ada layar bayar (langsung diteruskan oleh efek di atas)
 
   if (session.paymentStatus === "expired") {
     const toTemplates = session.mode === "photo" && !session.autoTemplate;
