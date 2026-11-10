@@ -1130,7 +1130,7 @@ app.get("/api/settings/public", async (req, res) => {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
-  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
+  res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, methods: pay.methods, online: pay.online, simulate: !!pay.simulate, testPayment: pay.mode !== "voucher" && !!pay.qrisConfigured && !pay.simulate && isTestPayment(), qrisDown: pay.mode !== "voucher" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
     discount: cloud.discountEnabled() && pay.methods.includes("qris") } });
 });
 
@@ -1141,6 +1141,15 @@ app.get("/api/settings/public", async (req, res) => {
 const SOCIAL_BITS = [{ bit: 1, dir: "_BOLEH-SOSMED", marker: "IZIN-SOSMED.txt", note: "Tamu mengizinkan foto sesi ini dibagikan di sosmed." },
   { bit: 2, dir: "_BOLEH-MADING", marker: "IZIN-MADING.txt", note: "Tamu mengizinkan foto sesi ini dipajang di mading / toko." }];
 const SOSMED_DIR = SOCIAL_BITS[0].dir;
+// Penanda tambahan berupa FOLDER KOSONG bernama tanggal_idsesi_<AKHIRAN> (tanpa salinan foto, jadi tidak makan ruang disk):
+//   _BOLEH-KEDUANYA = tamu mengizinkan sosmed DAN mading (fotonya sudah ada di dua folder BOLEH di atas)
+//   _TIDAK-BOLEH    = tamu menolak
+//   _BELUM-DIJAWAB  = pertanyaan izin aktif tapi tamu tidak memilih (hanya dibuat kalau Tampilan > Izin foto dinyalakan)
+const MARKER_DIRS = [
+  { dir: "_BOLEH-KEDUANYA", suffix: "KEDUANYA", when: (v) => v === 3 },
+  { dir: "_TIDAK-BOLEH", suffix: "TIDAK-BOLEH", when: (v) => v === 0 },
+  { dir: "_BELUM-DIJAWAB", suffix: "BELUM-DIJAWAB", when: (v) => v === null && !!settingsStore.load().general?.consent?.enabled },
+];
 const normConsent = (v) => (Number.isInteger(v) && v >= 0 && v <= 3 ? v : null);
 function findSessionFolder(id) {
   try {
@@ -1171,13 +1180,22 @@ function syncSocial(id) {
   for (const n of fs.readdirSync(f.dir)) if (isMarker(n)) { try { fs.rmSync(path.join(f.dir, n), { force: true }); } catch { /* abaikan */ } }
   const label = v === 3 ? "SOSMED+MADING" : v === 1 ? "SOSMED" : v === 2 ? "MADING" : "";
   const base = `${f.date}_${id}`;
+  const dropOld = (root, want) => { // hapus penanda/salinan lama (nama beda kalau izin berubah)
+    try {
+      for (const d of fs.existsSync(root) ? fs.readdirSync(root) : []) if ((d === base || d.startsWith(base + "_")) && d !== want) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+    } catch { /* abaikan */ }
+  };
   for (const o of SOCIAL_BITS) {
     const root = path.join(outputDir(), o.dir);
     const want = v !== null && (v & o.bit) ? `${base}_${label}` : null;
-    try { // hapus salinan lama (nama beda kalau izin berubah)
-      for (const d of fs.existsSync(root) ? fs.readdirSync(root) : []) if ((d === base || d.startsWith(base + "_")) && d !== want) fs.rmSync(path.join(root, d), { recursive: true, force: true });
-    } catch { /* abaikan */ }
+    dropOld(root, want);
     if (want) copyMissing(f.dir, path.join(root, want));
+  }
+  for (const m of MARKER_DIRS) { // folder kosong sebagai penanda (jangan menyalin foto lagi)
+    const root = path.join(outputDir(), m.dir);
+    const want = m.when(v) ? `${base}_${m.suffix}` : null;
+    dropOld(root, want);
+    if (want) { try { fs.mkdirSync(path.join(root, want), { recursive: true }); } catch { /* abaikan */ } }
   }
   gallery.pushSocial(id, f.dir).catch(() => {});
 }
@@ -1192,11 +1210,11 @@ app.get("/api/social/list", requirePerm("settings.manage"), (req, res) => {
   const rows = db.prepare(`SELECT id, mode, final_image_path, gif_path, video_path, share_token, social_consent, created_at FROM sessions WHERE ${cond} AND created_at >= datetime('now', ?) ORDER BY created_at DESC LIMIT 500`).all(`-${days} days`);
   const items = rows.map((r) => {
     const f = findSessionFolder(r.id);
-    if (r.social_consent) { try { syncSocial(r.id); } catch { /* abaikan */ } }
+    try { syncSocial(r.id); } catch { /* abaikan */ } // melengkapi penanda folder untuk sesi lama (semua status izin)
     const main = r.final_image_path || r.gif_path || r.video_path;
     return { id: r.id, mode: r.mode, consent: r.social_consent, createdAt: r.created_at, previewUrl: main ? publicFileUrl(main) : null, isVideo: !r.final_image_path && !r.gif_path && !!r.video_path, folder: f ? f.dir : null };
   });
-  res.json({ items, roots: SOCIAL_BITS.map((o) => ({ label: o.dir, path: path.join(outputDir(), o.dir) })) });
+  res.json({ items, roots: [...SOCIAL_BITS.map((o) => o.dir), ...MARKER_DIRS.map((m) => m.dir)].map((dir) => ({ label: dir, path: path.join(outputDir(), dir) })) });
 });
 app.post("/api/social/:id", requirePerm("settings.manage"), (req, res) => {
   const id = String(req.params.id);
@@ -1667,7 +1685,7 @@ app.post("/api/session/finish", async (req, res) => {
     console.error("[output] Gagal simpan arsip lokal:", err.message);
   }
 
-  if (normConsent(socialConsent) !== null) scheduleSocial(id);
+  if (normConsent(socialConsent) !== null || settingsStore.load().general?.consent?.enabled) scheduleSocial(id); // tamu tidak memilih (izin belum ada) pun diberi penanda kalau pertanyaan izin aktif
   const offline = await boothOffline();
   res.json({ offline, sessionId: id, uploadKey: key, downloadUrl: publicFileUrl(finalImagePath), shareUrl: gallery.shareUrlFor(realToken) || (realToken ? publicFileUrl(`/s/${realToken}`) : null), expiresAt });
 });

@@ -46,6 +46,8 @@ async function runChecks() {
     add("Internet", o.offline ? "warn" : "ok", o.offline ? "Offline. Booth hanya menerima voucher dan layar akhir tanpa QR." : "Tersambung.");
   } catch { add("Internet", "skip", "Tidak bisa diperiksa."); }
   if (pay.simulate) add("Simulasi pembayaran", "bad", "Simulasi pembayaran MASIH AKTIF: QRIS dianggap lunas tanpa uang masuk.", "Pembayaran > QRIS, matikan \"Simulasi\" sebelum studio dibuka.");
+  // Gateway masih Sandbox = uang tidak asli: transaksi berlabel TEST di kasir dan TIDAK dihitung sebagai pendapatan
+  if (pay.testPayment) add("Gateway pembayaran", "bad", "Gateway QRIS masih SANDBOX (uji coba): uang tamu tidak masuk, dan transaksi berlabel TEST di kasir (tidak dihitung pendapatan).", "Pembayaran > QRIS, pilih mode Production sebelum studio dibuka.");
   if (pay.mode === "voucher") add("Pembayaran", "ok", "Mode voucher (bayar di kasir).");
   else if (pay.qrisDown) add("Pembayaran", "warn", "QRIS belum bisa dipakai (offline atau belum diatur). Tamu diminta menghubungi CS.", "Cek internet dan Pembayaran > QRIS.");
   else add("Pembayaran", "ok", "QRIS siap.");

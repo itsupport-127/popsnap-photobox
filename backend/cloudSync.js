@@ -232,8 +232,10 @@ function applyChange(c) {
   if (row.kasir_edited_at && new Date(row.kasir_edited_at) >= new Date(at)) return false; // sudah diterapkan
   const paidIso = c.paid_at && !Number.isNaN(new Date(c.paid_at).getTime()) ? new Date(c.paid_at).toISOString() : null; // format sama dengan booth (UTC)
   // updated_at sengaja tidak diubah: ini bukan perubahan baru dari booth, jadi tidak perlu dikirim ulang ke kasir
-  db.prepare("UPDATE tx_log SET template_name = ?, method = ?, amount = ?, status = ?, paid_at = ?, kasir_edited_at = ? WHERE order_no = ?")
-    .run(c.template_name ?? null, c.method ?? row.method, Number(c.amount) || 0, c.status ?? row.status, paidIso ?? row.paid_at, at, row.order_no);
+  // is_test ikut disinkronkan: kasir bisa menandai transaksi sebagai test / bukan test (mis. gateway sandbox salah tanda)
+  const isTest = c.is_test === undefined || c.is_test === null ? row.is_test : (c.is_test ? 1 : 0);
+  db.prepare("UPDATE tx_log SET template_name = ?, method = ?, amount = ?, status = ?, paid_at = ?, is_test = ?, kasir_edited_at = ? WHERE order_no = ?")
+    .run(c.template_name ?? null, c.method ?? row.method, Number(c.amount) || 0, c.status ?? row.status, paidIso ?? row.paid_at, isTest, at, row.order_no);
   return true;
 }
 
