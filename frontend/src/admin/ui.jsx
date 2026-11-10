@@ -3,13 +3,13 @@ import { Icon } from "./editorKit";
 
 export function Page({ title, subtitle, children, right }) {
   return (
-    <div className="max-w-5xl mx-auto px-6 py-6">
-      <div className="flex items-start justify-between gap-4 mb-5">
-        <div>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-5">
+        <div className="min-w-0 flex-1 basis-64">
           <h1 className="display-h2 !text-[1.6rem] text-[#181B23]">{title}</h1>
           {subtitle && <p className="text-[13px] text-[#55606E] mt-1">{subtitle}</p>}
         </div>
-        {right}
+        {right && <div className="shrink-0">{right}</div>}
       </div>
       <div className="flex flex-col gap-4">{children}</div>
     </div>
@@ -37,7 +37,7 @@ export function Btn({ children, onClick, disabled, variant = "default", classNam
     danger: "bg-[#181B23] hover:bg-[#262A38] text-white border border-black/50",
   }[variant];
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 text-[13px] font-bold italic rounded-full disabled:opacity-40 transition-colors ${styles} ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`px-4 py-2 text-[13px] font-bold italic whitespace-nowrap rounded-full disabled:opacity-40 transition-colors ${styles} ${className}`}>
       {children}
     </button>
   );

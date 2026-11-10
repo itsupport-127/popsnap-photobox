@@ -123,13 +123,14 @@ export default function ActivityPage() {
       right={<div className="flex gap-2"><Btn onClick={() => load(filters, undefined)}>Muat ulang</Btn><Btn onClick={exportCsv} disabled={!rows.length}>Unduh CSV</Btn></div>}
     >
       <Card>
-        <div className="grid grid-cols-5 gap-3 text-[12px]">
-          <label className="flex flex-col gap-1 col-span-2 text-[#262A38]">Cari<input className={inputCls} placeholder="Nama pengguna, template, kode voucher..." value={filters.q} onChange={(e) => set({ q: e.target.value })} /></label>
-          <label className="flex flex-col gap-1 text-[#262A38]">Jenis<select className={inputCls} value={filters.cat} onChange={(e) => set({ cat: e.target.value })}>{CATEGORIES.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select></label>
-          <label className="flex flex-col gap-1 text-[#262A38]">Pengguna<select className={inputCls} value={filters.user} onChange={(e) => set({ user: e.target.value })}><option value="">Semua</option>{users.map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
-          <div className="flex gap-2">
-            <label className="flex flex-col gap-1 text-[#262A38] flex-1">Dari<input type="date" className={inputCls} value={filters.from} onChange={(e) => set({ from: e.target.value })} /></label>
-            <label className="flex flex-col gap-1 text-[#262A38] flex-1">Sampai<input type="date" className={inputCls} value={filters.to} onChange={(e) => set({ to: e.target.value })} /></label>
+        {/* HP: 1 kolom | tablet / layar sedang: 2 kolom | layar lebar: satu baris (6 kolom) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 text-[12px]">
+          <label className="flex flex-col gap-1 min-w-0 sm:col-span-2 text-[#262A38]">Cari<input className={`${inputCls} w-full min-w-0`} placeholder="Nama pengguna, template, kode voucher..." value={filters.q} onChange={(e) => set({ q: e.target.value })} /></label>
+          <label className="flex flex-col gap-1 min-w-0 text-[#262A38]">Jenis<select className={`${inputCls} w-full min-w-0`} value={filters.cat} onChange={(e) => set({ cat: e.target.value })}>{CATEGORIES.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select></label>
+          <label className="flex flex-col gap-1 min-w-0 text-[#262A38]">Pengguna<select className={`${inputCls} w-full min-w-0`} value={filters.user} onChange={(e) => set({ user: e.target.value })}><option value="">Semua</option>{users.map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
+          <div className="flex gap-2 min-w-0 sm:col-span-2">
+            <label className="flex flex-col gap-1 min-w-0 text-[#262A38] flex-1">Dari<input type="date" className={`${inputCls} w-full min-w-0`} value={filters.from} onChange={(e) => set({ from: e.target.value })} /></label>
+            <label className="flex flex-col gap-1 min-w-0 text-[#262A38] flex-1">Sampai<input type="date" className={`${inputCls} w-full min-w-0`} value={filters.to} onChange={(e) => set({ to: e.target.value })} /></label>
           </div>
         </div>
       </Card>
@@ -137,7 +138,7 @@ export default function ActivityPage() {
       {error && <Notice tone="error">{error}</Notice>}
 
       <Card>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-[13px]">
           <thead className="text-left text-[#6B7684] text-[12px]">
             <tr><th className="pb-2 w-[170px]">Waktu</th><th className="w-[130px]">Pengguna</th><th className="w-[170px]">Aksi</th><th>Objek &amp; rincian</th><th className="w-[110px]">IP</th></tr>
           </thead>
@@ -157,7 +158,7 @@ export default function ActivityPage() {
             })}
             {!rows.length && !loading && <tr><td colSpan={5} className="py-8 text-center text-[#6B7684]">Belum ada aktivitas yang cocok.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         {loading && <p className="text-center text-[#6B7684] text-[12px] pt-3">Memuat...</p>}
         {nextBefore && !loading && <div className="text-center pt-3"><Btn onClick={() => load(filters, nextBefore)}>Muat lebih banyak</Btn></div>}
       </Card>
