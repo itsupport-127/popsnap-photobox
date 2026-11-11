@@ -256,7 +256,8 @@ export async function printTestCopy(doc) {
  * @returns {Promise<Array<{ meta, layers, favorite, report }>>}  template yang gagal dibaca dilaporkan lewat `errors` di properti array.
  */
 export async function parseDslrFolder(fileList) {
-  const all = Array.from(fileList || []).map((f) => ({ f, path: String(f.webkitRelativePath || f.name).replace(/\\/g, "/") }));
+  // item boleh berupa File (dari satu pemilihan) atau { f, path } (gabungan beberapa pemilihan folder, path sudah diberi awalan unik)
+  const all = Array.from(fileList || []).map((f) => (f && f.f ? { f: f.f, path: f.path } : { f, path: String(f.webkitRelativePath || f.name).replace(/\\/g, "/") }));
   const dirOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
   const roots = all.filter((x) => x.path.split("/").pop().toLowerCase() === "template.xml").map((x) => dirOf(x.path));
   if (!roots.length) throw new Error("Tidak ada template.xml di folder ini. Pilih folder template dslrBooth (atau folder Templates yang berisi beberapa template).");

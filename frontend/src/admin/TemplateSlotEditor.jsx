@@ -99,6 +99,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
   const replaceIdRef = useRef(null);
   const importInputRef = useRef(null);
   const importDirRef = useRef(null);
+  const pileRef = useRef({ picks: 0, files: [] }); // gabungan beberapa pemilihan folder (Windows hanya mengizinkan satu folder per dialog)
   const [bulkAsk, setBulkAsk] = useState(null); // beberapa template dari folder dslrBooth, menunggu kategori / harga
   const [busyMsg, setBusyMsg] = useState(null);
   const [toast, setToast] = useState(null);
@@ -646,19 +647,28 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
     const list = Array.from(e.target.files || []);
     e.target.value = "";
     if (!list.length || blockedNoSlot()) return;
-    if (dirty && !confirm("Ada perubahan yang belum disimpan. Tetap impor? (Template yang sedang dibuka akan ditutup.)")) return;
+    if (!pileRef.current.picks && dirty && !confirm("Ada perubahan yang belum disimpan. Tetap impor? (Template yang sedang dibuka akan ditutup.)")) return;
     setBusyMsg("Membaca folder...");
     try {
-      const found = await parseDslrFolder(list);
+      const pile = pileRef.current;
+      const k = pile.picks + 1;
+      const sig = (f) => `${f.webkitRelativePath || f.name}|${f.size}|${f.lastModified}`;
+      const have = new Set(pile.files.map((x) => sig(x.f)));
+      const added = list.filter((f) => !have.has(sig(f))).map((f) => ({ f, path: `p${k}/` + String(f.webkitRelativePath || f.name).replace(/\\/g, "/") }));
+      if (!added.length) { alert("Folder itu sudah ada di daftar."); return; }
+      const found = await parseDslrFolder([...pile.files, ...added]);
       if (!found.length) throw new Error(found.errors?.join("\n") || "Tidak ada template yang bisa dibaca.");
-      if (found.length === 1 && !found.errors?.length) setImportAsk(found[0]);
+      pile.files = [...pile.files, ...added]; pile.picks = k;
+      if (k === 1 && found.length === 1 && !found.errors?.length) { pileRef.current = { picks: 0, files: [] }; setImportAsk(found[0]); }
       else setBulkAsk({ items: found, errors: found.errors ?? [] });
     } catch (err) { alert(err.message || "Gagal membaca folder."); }
     finally { setBusyMsg(null); }
   }
+  const resetPile = () => { pileRef.current = { picks: 0, files: [] }; };
+  function addMoreFolders() { setTimeout(() => importDirRef.current?.click(), 0); }
 
   async function finishBulkImport(items, { category, price }) {
-    setBulkAsk(null);
+    setBulkAsk(null); resetPile();
     for (const [i, parsed] of items.entries()) {
       setBusyMsg(`Mengimpor ${i + 1} dari ${items.length}: ${parsed.meta.name}`);
       await finishImport(parsed, { name: parsed.meta.name, category, price });
@@ -1038,7 +1048,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
           <div className="flex justify-end mt-4"><button onClick={() => setImportReport(null)} className="px-4 py-2 bg-[#E02843] hover:bg-[#B81E36] text-white">OK</button></div>
         </Modal>
       )}
-      {bulkAsk && <BulkImportModal ask={bulkAsk} categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setBulkAsk(null)} onConfirm={(v) => finishBulkImport(bulkAsk.items, v)} />}
+      {bulkAsk && <BulkImportModal ask={bulkAsk} categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => { setBulkAsk(null); resetPile(); }} onAddMore={addMoreFolders} onConfirm={(v) => finishBulkImport(bulkAsk.items, v)} />}
       {importAsk && <ImportAskModal parsed={importAsk} categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setImportAsk(null)} onConfirm={(v) => finishImport(importAsk, v)} />}
       {modal === "new" && <NewTemplateModal categories={categories} onManageCategories={() => setCatManager(true)} onClose={() => setModal(null)} onCreate={handleCreate} />}
       {catManager && <CategoryManager onClose={() => { setCatManager(false); reloadCategories(); }} onChanged={reloadCategories} />}
@@ -1292,13 +1302,13 @@ function NewTemplateModal({ categories, onManageCategories, onClose, onCreate })
 }
 
 /** Dialog setelah memilih file impor: nama, kategori, harga (file dslrBooth tidak menyimpan harga/kategori). */
-function BulkImportModal({ ask, categories, onManageCategories, onClose, onConfirm }) {
+function BulkImportModal({ ask, categories, onManageCategories, onClose, onAddMore, onConfirm }) {
   const [category, setCategory] = useState(categories[0]?.id);
   const [price, setPrice] = useState("25000");
   useEffect(() => { if (!categories.some((c) => c.id === category) && categories[0]) setCategory(categories[0].id); }, [categories]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal title={`Impor ${ask.items.length} template dari folder`} onClose={onClose} width="w-[520px]">
-      <p className="text-[13px] text-[#262A38] mb-2">Template dslrBooth tidak membawa harga dan kategori. Isi satu kali di bawah (berlaku untuk semuanya); harga tiap template bisa diubah lagi sesudahnya.</p>
+      <p className="text-[13px] text-[#262A38] mb-2">Windows hanya membolehkan satu folder per dialog: pilih folder induk (mis. Templates) untuk banyak template sekaligus, atau tekan "Tambah folder lain" untuk menggabungkan beberapa folder. Template dslrBooth tidak membawa harga dan kategori. Isi satu kali di bawah (berlaku untuk semuanya); harga tiap template bisa diubah lagi sesudahnya.</p>
       <ul className="text-[12px] text-[#55606E] max-h-40 overflow-auto border border-[#E3E8EE] p-2 mb-3 list-disc pl-5">
         {ask.items.map((t, i) => <li key={i}>{t.meta.name} <span className="text-[#8A94A2]">({t.meta.canvasWidth}×{t.meta.canvasHeight}, {t.layers.length} layer)</span></li>)}
       </ul>
@@ -1307,7 +1317,8 @@ function BulkImportModal({ ask, categories, onManageCategories, onClose, onConfi
         <Field label="Kategori"><CategorySelect value={category} categories={categories} onManage={onManageCategories} onChange={setCategory} /></Field>
         <Field label="Harga (Rp)"><input type="number" min={0} step={1000} value={price} onChange={(e) => setPrice(e.target.value)} className={inputCls} /></Field>
       </div>
-      <div className="flex justify-end gap-2 mt-4">
+      <div className="flex flex-wrap items-center justify-end gap-2 mt-4">
+        <button onClick={onAddMore} className="mr-auto px-3 py-2 border border-[#C7D0DA] text-[13px] hover:border-[#E02843]">+ Tambah folder lain</button>
         <button onClick={onClose} className="px-4 py-2 border border-[#C7D0DA] text-[13px]">Batal</button>
         <button onClick={() => onConfirm({ category, price: Math.max(0, Math.round(Number(price) || 0)) })} className="px-4 py-2 bg-[#E02843] hover:bg-[#B81E36] text-white text-[13px] font-semibold">Impor semua</button>
       </div>
