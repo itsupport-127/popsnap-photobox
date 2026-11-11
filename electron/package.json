@@ -21,6 +21,7 @@
       "preload.js",
       "dslrBridge.js",
       "printer.js",
+      "templateFolders.js",
       "pinPreload.js",
       "pinWindow.html"
     ],

@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     test: (o) => ipcRenderer.invoke("print:test", o),
   },
   pickFolder: () => ipcRenderer.invoke("kiosk:pick-folder"),
+  pickTemplateFolders: () => ipcRenderer.invoke("kiosk:pick-template-folders"),
   // Dialog "Simpan sebagai" bawaan Windows (dipakai Export template & unduh CSV)
   chooseSavePath: (opts) => ipcRenderer.invoke("files:choose-save-path", opts),
   writeChosenFile: (filePath, bytes) => ipcRenderer.invoke("files:write-chosen", filePath, bytes),

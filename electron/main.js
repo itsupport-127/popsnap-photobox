@@ -337,6 +337,13 @@ ipcMain.handle("kiosk:quit", () => {
   allowClose = true;
   app.quit();
 });
+// Pilih BEBERAPA folder template sekaligus lewat dialog folder bawaan Windows, lalu baca isinya (xml + gambar).
+ipcMain.handle("kiosk:pick-template-folders", async () => {
+  const r = await dialog.showOpenDialog(mainWindow, { title: "Pilih folder template (boleh lebih dari satu)", buttonLabel: "Pilih Folder", properties: ["openDirectory", "multiSelections"] });
+  if (r.canceled || !r.filePaths.length) return { ok: true, files: [] };
+  try { return { ok: true, files: require("./templateFolders").readFolders(r.filePaths).map((f) => ({ path: f.path, data: new Uint8Array(f.data) })) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
 ipcMain.handle("kiosk:pick-folder", async () => {
   const r = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
   return r.canceled ? null : r.filePaths[0];

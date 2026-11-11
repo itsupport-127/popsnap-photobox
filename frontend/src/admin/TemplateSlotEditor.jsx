@@ -643,18 +643,16 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
   }
 
   // Impor dari FOLDER dslrBooth (tanpa perlu di-ZIP): satu template -> dialog biasa; beberapa -> satu dialog untuk semuanya.
-  async function handleImportFolder(e) {
-    const list = Array.from(e.target.files || []);
-    e.target.value = "";
-    if (!list.length || blockedNoSlot()) return;
+  // Terima daftar { f: File, rel: "Folder/sub/file", sig } dari satu kali pemilihan folder, gabungkan dengan pilihan sebelumnya.
+  async function absorbFolders(entries) {
+    if (!entries.length || blockedNoSlot()) return;
     if (!pileRef.current.picks && dirty && !confirm("Ada perubahan yang belum disimpan. Tetap impor? (Template yang sedang dibuka akan ditutup.)")) return;
     setBusyMsg("Membaca folder...");
     try {
       const pile = pileRef.current;
       const k = pile.picks + 1;
-      const sig = (f) => `${f.webkitRelativePath || f.name}|${f.size}|${f.lastModified}`;
-      const have = new Set(pile.files.map((x) => sig(x.f)));
-      const added = list.filter((f) => !have.has(sig(f))).map((f) => ({ f, path: `p${k}/` + String(f.webkitRelativePath || f.name).replace(/\\/g, "/") }));
+      const have = new Set(pile.files.map((x) => x.sig));
+      const added = entries.filter((x) => !have.has(x.sig)).map((x) => ({ f: x.f, sig: x.sig, path: `p${k}/` + x.rel }));
       if (!added.length) { alert("Folder itu sudah ada di daftar."); return; }
       const found = await parseDslrFolder([...pile.files, ...added]);
       if (!found.length) throw new Error(found.errors?.join("\n") || "Tidak ada template yang bisa dibaca.");
@@ -664,8 +662,26 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
     } catch (err) { alert(err.message || "Gagal membaca folder."); }
     finally { setBusyMsg(null); }
   }
+  // Versi web / browser: <input webkitdirectory> (satu folder per dialog, tombol dialog "Upload" milik Chrome).
+  async function handleImportFolder(e) {
+    const list = Array.from(e.target.files || []);
+    e.target.value = "";
+    await absorbFolders(list.map((f) => { const rel = String(f.webkitRelativePath || f.name).replace(/\\/g, "/"); return { f, rel, sig: `${rel}|${f.size}|${f.lastModified}` }; }));
+  }
+  // Versi Electron: dialog folder bawaan Windows, boleh pilih BEBERAPA folder sekaligus (tombol "Pilih Folder").
+  async function pickTemplateFolders() {
+    const api = window.electronAPI?.pickTemplateFolders;
+    if (!api) { importDirRef.current?.click(); return; }
+    let r;
+    try { r = await api(); } catch (err) { alert(err.message || "Gagal membuka dialog folder."); return; }
+    if (!r?.ok) { alert(r?.error || "Gagal membaca folder."); return; }
+    await absorbFolders((r.files || []).map((x) => {
+      const rel = String(x.path).replace(/\\/g, "/");
+      return { f: new File([x.data], rel.split("/").pop()), rel, sig: `${rel}|${x.data.byteLength}` };
+    }));
+  }
   const resetPile = () => { pileRef.current = { picks: 0, files: [] }; };
-  function addMoreFolders() { setTimeout(() => importDirRef.current?.click(), 0); }
+  function addMoreFolders() { setTimeout(() => pickTemplateFolders(), 0); }
 
   async function finishBulkImport(items, { category, price }) {
     setBulkAsk(null); resetPile();
@@ -802,7 +818,7 @@ export default function TemplateSlotEditor({ currentUser, onLogout }) {
         <ToolbarButton icon="copy" label="Save as New" onClick={handleSaveAsNew} disabled={!doc} />
         <ToolbarButton icon="save" label={saveState === "saving" ? "Saving..." : "Save"} onClick={() => handleSave()} disabled={!doc || (!dirty && saveState !== "saving")} />
         <ToolbarButton icon="download" label="Import" onClick={handleImportClick} />
-        <ToolbarButton icon="download" label="Import Folder" onClick={() => importDirRef.current?.click()} />
+        <ToolbarButton icon="download" label="Import Folder" onClick={pickTemplateFolders} />
         <ToolbarButton icon="upload" label="Export" onClick={handleExport} disabled={!doc} />
         <ToolbarButton icon="printer" label="Print Test Copy" onClick={handlePrintTest} disabled={!doc} />
         <ToolbarButton icon="trash" label="Delete Template" onClick={handleDeleteTemplate} disabled={!doc} />
@@ -1308,7 +1324,7 @@ function BulkImportModal({ ask, categories, onManageCategories, onClose, onAddMo
   useEffect(() => { if (!categories.some((c) => c.id === category) && categories[0]) setCategory(categories[0].id); }, [categories]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <Modal title={`Impor ${ask.items.length} template dari folder`} onClose={onClose} width="w-[520px]">
-      <p className="text-[13px] text-[#262A38] mb-2">Windows hanya membolehkan satu folder per dialog: pilih folder induk (mis. Templates) untuk banyak template sekaligus, atau tekan "Tambah folder lain" untuk menggabungkan beberapa folder. Template dslrBooth tidak membawa harga dan kategori. Isi satu kali di bawah (berlaku untuk semuanya); harga tiap template bisa diubah lagi sesudahnya.</p>
+      <p className="text-[13px] text-[#262A38] mb-2">Pilih folder induk (mis. Templates) untuk banyak template sekaligus, atau tekan "Tambah folder lain" untuk menggabungkan beberapa folder (di aplikasi booth, dialog folder boleh memilih beberapa folder sekaligus). Template dslrBooth tidak membawa harga dan kategori. Isi satu kali di bawah (berlaku untuk semuanya); harga tiap template bisa diubah lagi sesudahnya.</p>
       <ul className="text-[12px] text-[#55606E] max-h-40 overflow-auto border border-[#E3E8EE] p-2 mb-3 list-disc pl-5">
         {ask.items.map((t, i) => <li key={i}>{t.meta.name} <span className="text-[#8A94A2]">({t.meta.canvasWidth}×{t.meta.canvasHeight}, {t.layers.length} layer)</span></li>)}
       </ul>
