@@ -38,7 +38,7 @@ export default function SocialPage() {
     setBusy(false);
   }
 
-  const label = { 3: "Sosmed + mading", 1: "Sosmed saja", 2: "Mading saja", 0: "Tidak boleh" };
+  const label = { 3: "Sosmed + Mading", 1: "Sosmed", 2: "Mading", 0: "Tidak boleh" }; // sama dengan galeri & kasir
   const OPT = [[3, "Sosmed + mading"], [1, "Sosmed saja"], [2, "Mading saja"], [0, "Tidak boleh"]];
   return (
     <Page title="Konten Sosmed & Mading" subtitle="Foto yang tamunya mengizinkan dibagikan di sosmed dan/atau dipajang di mading toko. Salinannya otomatis ada di folder khusus di PC booth (_BOLEH-SOSMED dan _BOLEH-MADING).">
