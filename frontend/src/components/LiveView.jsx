@@ -11,8 +11,9 @@ import { filterCss } from "../utils/filters";
  * `aspect` = rasio kotak tampil (lebar/tinggi). `crop` = potong sesuai kotak itu (Crop Liveview) atau tampilkan utuh.
  * `guide` = rasio (lebar/tinggi) area yang masuk ke template: bagian itu tampil terang, sisanya digelapkan (hanya saat tampil utuh).
  */
-export default function LiveView({ camera, aspect, crop = true, fill = false, onAspect, mirror, guide = null, className = "" }) {
-  const cfg = appConfig.settings?.camera ?? {};
+export default function LiveView({ camera, aspect, crop = true, fill = false, onAspect, mirror, guide = null, className = "", cfgOverride = null }) {
+  // cfgOverride: dipakai pratinjau di Pengaturan (nilai yang belum disimpan); layar booth memakai pengaturan tersimpan
+  const cfg = cfgOverride ?? appConfig.settings?.camera ?? {};
   const lv = cfg.liveView ?? { enabled: true, mirror: true, rotation: 0 };
   const [dims, setDims] = useState({ w: 0, h: 0 });
   // Kecerahan live view = kurva gamma (mengangkat area gelap), BUKAN pengali linear brightness(): pengali linear ikut membesarkan
