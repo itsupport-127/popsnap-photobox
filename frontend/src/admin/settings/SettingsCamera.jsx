@@ -3,6 +3,7 @@ import { NumInput } from "../editorKit";
 import { Btn, Card, Notice } from "../ui";
 import { Check, Range, Row, Select } from "./controls";
 import { DEFAULT_FILTERS } from "../../utils/filters";
+import { effectiveRotation } from "../../utils/cameraRotation";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 const RES_LABEL = ["640×480 · frame rate tertinggi", "1280×720 (HD)", "1920×1080 (Full HD)", "3840×2160 (4K) · kualitas tertinggi"];
@@ -77,7 +78,11 @@ export default function SettingsCamera({ s, set, only }) {
   useEffect(() => stopPreview, []);
 
   const lv = c.liveView;
-  const sideways = lv.rotation === 90 || lv.rotation === 270;
+  // Pratinjau memakai aturan putar yang SAMA dengan layar sesi foto (Rotation + "Orientasi kamera" otomatis), bukan Rotation saja
+  const [pvDims, setPvDims] = useState({ w: 0, h: 0 }); // ukuran gambar kamera yang sedang dipratinjau (webcam atau DSLR)
+  const pvRot = effectiveRotation(lv.rotation || 0, c.orientation, pvDims.w, pvDims.h);
+  const sideways = pvRot === 90 || pvRot === 270;
+  const pvBox = { position: "absolute", left: "50%", top: "50%", width: sideways ? "100cqh" : "100cqw", height: sideways ? "100cqw" : "100cqh", maxWidth: "none", maxHeight: "none", transform: `translate(-50%,-50%) scaleX(${lv.mirror ? -1 : 1}) rotate(${pvRot}deg)` };
 
   return (
     <>
@@ -157,8 +162,8 @@ export default function SettingsCamera({ s, set, only }) {
           <Row label="Uji live view" hint="Menampilkan live view kamera lewat POPSNAP. Jendela live view digiCamControl akan terbuka di layar PC — geser ke monitor lain / minimalkan.">
             {!lvTest ? <Btn onClick={() => setLvTest(true)}>Nyalakan live view</Btn> : (
               <div>
-                <div className="bg-black w-[360px] h-[240px] flex items-center justify-center overflow-hidden">
-                  {lvSrc ? <img src={lvSrc} alt="live view DSLR" style={{ maxWidth: "100%", maxHeight: "100%", transform: `rotate(${lv.rotation}deg) scaleX(${lv.mirror ? -1 : 1})` }} /> : <span className="text-white/70 text-[12px]">Menunggu live view…</span>}
+                <div className="relative bg-black w-[360px] h-[240px] overflow-hidden" style={{ containerType: "size" }}>
+                  {lvSrc ? <img src={lvSrc} alt="live view DSLR" onLoad={(e) => { const w = e.currentTarget.naturalWidth, h = e.currentTarget.naturalHeight; if (w && h) setPvDims((d) => (d.w === w && d.h === h ? d : { w, h })); }} style={{ ...pvBox, objectFit: "contain" }} /> : <span className="absolute inset-0 flex items-center justify-center text-white/70 text-[12px]">Menunggu live view…</span>}
                 </div>
                 <div className="mt-2 flex items-center gap-3"><Btn onClick={() => { setLvTest(false); setLvSrc(null); }}>Matikan live view</Btn>{lvFps != null && <span className="text-[12px] text-[#55606E]">Kecepatan: <b>{lvFps}</b> frame/detik{lvFps > 0 && lvFps < 10 ? " (rendah — dari kamera/USB, bukan layar)" : ""}</span>}</div>
               </div>
@@ -206,12 +211,11 @@ export default function SettingsCamera({ s, set, only }) {
           {!previewing ? <Btn onClick={startPreview}>Nyalakan pratinjau</Btn> : (
             <div>
               <div className="relative bg-black overflow-hidden w-[360px] h-[220px]" style={{ containerType: "size" }}>
-                <video ref={videoRef} autoPlay playsInline muted style={{
-                  position: "absolute", left: "50%", top: "50%", width: sideways ? "100cqh" : "100cqw", height: sideways ? "100cqw" : "100cqh",
-                  objectFit: "cover", opacity: lv.enabled ? 1 : 0.15, transform: `translate(-50%,-50%) rotate(${lv.rotation}deg) scaleX(${lv.mirror ? -1 : 1})`,
+                <video ref={videoRef} autoPlay playsInline muted onLoadedMetadata={(e) => { const w = e.currentTarget.videoWidth, h = e.currentTarget.videoHeight; if (w && h) setPvDims({ w, h }); }} style={{
+                  ...pvBox, objectFit: "cover", opacity: lv.enabled ? 1 : 0.15,
                 }} />
               </div>
-              <div className="mt-2"><Btn onClick={stopPreview}>Matikan pratinjau</Btn></div>
+              <div className="mt-2 flex items-center gap-3"><Btn onClick={stopPreview}>Matikan pratinjau</Btn>{pvDims.w > 0 && <span className="text-[12px] text-[#55606E]">Kamera {pvDims.w}×{pvDims.h} · diputar {pvRot}°{lv.mirror ? " · mirror" : ""}</span>}</div>
             </div>
           )}
         </Row>

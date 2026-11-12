@@ -83,7 +83,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
   // Mode ketuk: "all" = tiap foto diketuk; "first" = ketuk sekali di foto pertama (atau saat retake), sisanya otomatis
   const scopeFirst = cap.manualTrigger !== false && cap.manualScope === "first";
-  const manualNow = cap.manualTrigger !== false && (!scopeFirst || session.shots.length === 0 || session.retakeAt != null);
+  // 'Foto pertama saja': ketuk sekali di foto pertama; foto berikutnya DAN foto ulang (retake) otomatis mulai hitung mundur sendiri.
+  const manualNow = cap.manualTrigger !== false && (!scopeFirst || session.shots.length === 0);
   // Nama kelas ditulis utuh (bukan disusun `sess-capture--${hint}`): Tailwind v4 membuang kelas @layer components yang tidak ditemukan
   // utuh di kode sumber, sehingga animasi tidak pernah ikut terbuat.
   const hint = cap.captureHint ?? "pulse";
