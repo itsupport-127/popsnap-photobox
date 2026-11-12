@@ -52,17 +52,20 @@ export default function SettingsCamera({ s, set, only }) {
   useEffect(() => { if (c.mode === "dslr") detectDslr(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [c.mode]);
   const [lvFps, setLvFps] = useState(null);
+  const [lvStale, setLvStale] = useState(false);
   useEffect(() => {
     if (!lvTest) return undefined;
     setLvSrc(`${API_BASE}/api/camera/dslr/stream?t=${Date.now()}`); // aliran MJPEG, sama seperti di layar sesi foto
-    let stop = false;
+    let stop = false, gotFrames = false;
+    setLvStale(false);
+    const staleTimer = setTimeout(() => { if (!stop && !gotFrames) setLvStale(true); }, 8000); // 8 detik tanpa gambar = beri tahu, jangan diam saja
     (async () => {
       while (!stop) {
         await new Promise((x) => setTimeout(x, 1500));
-        try { const r = await fetch(`${API_BASE}/api/camera/dslr/status`).then((x) => x.json()); if (!stop) setLvFps(r.fps ?? null); } catch { /* abaikan */ }
+        try { const r = await fetch(`${API_BASE}/api/camera/dslr/status`).then((x) => x.json()); if (!stop) { setLvFps(r.fps ?? null); if (r.fps > 0) { gotFrames = true; setLvStale(false); } } } catch { /* abaikan */ }
       }
     })();
-    return () => { stop = true; setLvFps(null); fetch(`${API_BASE}/api/camera/dslr/liveview/stop`, { method: "POST" }).catch(() => {}); };
+    return () => { stop = true; clearTimeout(staleTimer); setLvStale(false); setLvFps(null); fetch(`${API_BASE}/api/camera/dslr/liveview/stop`, { method: "POST" }).catch(() => {}); };
   }, [lvTest]);
 
   // Pesan jelas di samping tombol (dulu error hanya muncul di kartu "Webcam" yang sering tidak terlihat -> tombol terasa mati).
@@ -206,6 +209,7 @@ export default function SettingsCamera({ s, set, only }) {
             {!lvTest ? <Btn onClick={() => setLvTest(true)}>Nyalakan live view</Btn> : (
               <div>
                 {lvSrc ? pvBox(dslrCam) : <div className="bg-black w-[360px] h-[240px] flex items-center justify-center text-white/70 text-[12px]">Menunggu live view…</div>}
+                {lvStale && <div className="mt-2 max-w-xl"><Notice tone="warn">Belum ada gambar dari kamera setelah 8 detik. {dslr?.sdkError || dslr?.error || ""} Cek: kamera menyala dan di mode foto/manual, kabel USB tersambung, penghubung (digiCamControl / SDK) berjalan, dan program lain (EOS Utility, digiCamControl) tidak sedang memegang kamera. Klik "Deteksi kamera" di atas untuk melihat statusnya.</Notice></div>}
                 <div className="mt-2 flex items-center gap-3"><Btn onClick={() => { setLvTest(false); setLvSrc(null); }}>Matikan live view</Btn>{lvFps != null && <span className="text-[12px] text-[#55606E]">Kecepatan: <b>{lvFps}</b> frame/detik{lvFps > 0 && lvFps < 10 ? " (rendah — dari kamera/USB, bukan layar)" : ""}</span>}</div>
               </div>
             )}

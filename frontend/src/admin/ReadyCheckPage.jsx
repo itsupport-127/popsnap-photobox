@@ -36,7 +36,10 @@ async function runChecks() {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true }); s.getTracks().forEach((t) => t.stop());
       add("Kamera (webcam)", "ok", "Webcam terbaca.");
-    } catch { add("Kamera (webcam)", "bad", "Webcam tidak bisa dibuka.", "Cek kabel dan izin kamera, lalu Pengaturan > Kamera."); }
+    } catch (e) {
+      const why = e?.name === "NotAllowedError" ? "Izin kamera ditolak." : e?.name === "NotReadableError" ? "Kamera sedang dipakai program lain." : e?.name === "NotFoundError" ? "Webcam tidak ditemukan." : "Webcam tidak bisa dibuka.";
+      add("Kamera (webcam)", "bad", why, "Cek kabel dan izin kamera, lalu Pengaturan > Kamera.");
+    }
   }
 
   // Internet & pembayaran
