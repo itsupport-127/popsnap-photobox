@@ -145,14 +145,27 @@ async function syncSession(row) {
     if (failedFid.has(row.session_id) && row.attempts >= 2) body.retry = failedFid.get(row.session_id);
     const r = await api("POST", "/sessions", body);
     const byFid = new Map(todo.map((f) => [f.fid, f]));
-    for (const u of r.uploads || []) {
-      const f = byFid.get(u.fid); if (!f) continue;
-      try {
-        await putFile(u.url, f, u.contentType);
-        await api("POST", `/sessions/${row.token}/done`, { fid: f.fid });
-        db.prepare("INSERT OR IGNORE INTO gallery_files (session_id, fid) VALUES (?, ?)").run(row.session_id, f.fid);
-      } catch (e) { failedFid.set(row.session_id, f.fid); throw e; }
-    }
+    // Urutan: hasil akhir dulu (itu yang dicari pelanggan), lalu GIF / video / live, lalu foto mentah, terakhir klip.
+    // 3 file sekaligus; satu file gagal tidak menghentikan yang lain (yang gagal dicoba lagi di putaran berikut).
+    const PRIORITY = { final: 0, boomerang: 0, gif: 1, gifplain: 1, video: 1, live: 1, raw: 2, clip: 3 };
+    const ups = (r.uploads || []).map((u) => ({ u, f: byFid.get(u.fid) })).filter((x) => x.f)
+      .sort((a, b) => (PRIORITY[a.f.kind] ?? 2) - (PRIORITY[b.f.kind] ?? 2) || (a.f.idx || 0) - (b.f.idx || 0));
+    let next = 0, firstErr = null, stop = false;
+    const worker = async () => {
+      while (!stop && next < ups.length) {
+        const { u, f } = ups[next++];
+        try {
+          await putFile(u.url, f, u.contentType);
+          await api("POST", `/sessions/${row.token}/done`, { fid: f.fid });
+          db.prepare("INSERT OR IGNORE INTO gallery_files (session_id, fid) VALUES (?, ?)").run(row.session_id, f.fid);
+        } catch (e) {
+          failedFid.set(row.session_id, f.fid); firstErr = firstErr || e;
+          if (e.status === 401 || e.status === 403 || e.status === 503) stop = true; // token salah / studio diputus: sisanya pasti gagal juga
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, ups.length) }, worker));
+    if (firstErr) throw firstErr;
     for (const sk of r.skipped || []) db.prepare("INSERT OR IGNORE INTO gallery_files (session_id, fid) VALUES (?, ?)").run(row.session_id, String(sk.fid)); // ditolak galeri: jangan diulang terus
     failedFid.delete(row.session_id);
   }
@@ -168,7 +181,7 @@ async function run({ force = false } = {}) {
   state.busy = true;
   let sent = 0, errors = 0;
   try {
-    const rows = db.prepare("SELECT * FROM gallery_sync WHERE state = 'active' AND created_at > ? AND (next_try <= ? OR ?) ORDER BY created_at LIMIT 20").all(Date.now() - GIVE_UP_MS, Date.now(), force ? 1 : 0);
+    const rows = db.prepare("SELECT * FROM gallery_sync WHERE state = 'active' AND created_at > ? AND (next_try <= ? OR ?) ORDER BY created_at DESC LIMIT 20").all(Date.now() - GIVE_UP_MS, Date.now(), force ? 1 : 0);
     for (const row of rows) {
       try { await syncSession(row); sent++; state.lastOkAt = new Date().toISOString(); state.lastError = null; }
       catch (e) {
@@ -176,7 +189,7 @@ async function run({ force = false } = {}) {
         const msg = e.name === "AbortError" ? "Galeri tidak menjawab (timeout)" : e.message;
         state.lastError = msg;
         const attempts = row.attempts + 1;
-        db.prepare("UPDATE gallery_sync SET attempts = ?, last_error = ?, next_try = ? WHERE session_id = ?").run(attempts, String(msg).slice(0, 300), Date.now() + Math.min(5 * 60 * 1000, 5000 * 2 ** Math.min(attempts, 6)), row.session_id);
+        db.prepare("UPDATE gallery_sync SET attempts = ?, last_error = ?, next_try = ? WHERE session_id = ?").run(attempts, String(msg).slice(0, 300), Date.now() + Math.min(60 * 1000, 5000 * 2 ** Math.min(attempts, 4)), row.session_id);
         if (e.status === 401 || e.status === 403 || e.status === 503) break; // token salah / studio diputus admin / galeri belum siap: semua sesi akan gagal sama // token salah / galeri belum siap: semua sesi akan gagal sama
       }
     }
