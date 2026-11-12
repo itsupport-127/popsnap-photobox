@@ -65,15 +65,41 @@ export default function SettingsCamera({ s, set, only }) {
     return () => { stop = true; setLvFps(null); fetch(`${API_BASE}/api/camera/dslr/liveview/stop`, { method: "POST" }).catch(() => {}); };
   }, [lvTest]);
 
+  // Pesan jelas di samping tombol (dulu error hanya muncul di kartu "Webcam" yang sering tidak terlihat -> tombol terasa mati).
+  const [pvMsg, setPvMsg] = useState(null);
+  const [starting, setStarting] = useState(false);
+  function explainCamErr(e) {
+    const n = e?.name || "";
+    if (n === "NotAllowedError" || n === "SecurityError" || n === "NotSupportedError") return "Akses kamera ditolak. Izinkan kamera untuk aplikasi/browser ini (Windows: Pengaturan > Privasi > Kamera, aktifkan untuk aplikasi desktop).";
+    if (n === "NotFoundError" || n === "OverconstrainedError") return "Kamera webcam / capture card tidak ditemukan. Cek kabel USB, lalu klik 'Deteksi ulang' dan pilih perangkatnya di Webcam Video Input. Kamera DSLR/mirrorless tidak terbaca di sini — pakai bagian KAMERA DSLR di bawah (Uji live view).";
+    if (n === "NotReadableError" || n === "AbortError") return "Kamera sedang dipakai program lain atau macet. Tutup digiCamControl, Canon EOS Utility, Zoom/OBS, dan tab/jendela lain yang memakai kamera; kalau masih gagal cabut-pasang kabel USB-nya.";
+    if (n === "TimeoutError") return "Kamera tidak menjawab dalam 12 detik (biasanya perangkat sedang dipakai program lain, atau driver capture card macet). Tutup program yang memakai kamera, cabut-pasang USB, lalu coba lagi.";
+    return `Pratinjau gagal: ${e?.message || n || "alasan tidak diketahui"}.`;
+  }
   async function startPreview() {
-    stopPreview();
-    try {
-      const [w, h] = RES[c.resolution];
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { ...(c.videoDeviceId ? { deviceId: { ideal: c.videoDeviceId } } : {}), width: { ideal: w }, height: { ideal: h } } });
-      streamRef.current = stream;
-      setPreviewing(true);
-      requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = stream; });
-    } catch (err) { setMsg(err.message); }
+    stopPreview(); setPvMsg(null);
+    if (!navigator.mediaDevices?.getUserMedia) { setPvMsg("Akses kamera tidak tersedia di sini (butuh halaman https atau localhost)."); return; }
+    setStarting(true);
+    const [w, h] = RES[c.resolution] ?? RES[2];
+    const dev = c.videoDeviceId ? { deviceId: { ideal: c.videoDeviceId } } : {};
+    // Percobaan 2 tanpa tuntutan resolusi: sebagian capture card / webcam macet atau menolak resolusi tinggi
+    const attempts = [{ video: { ...dev, width: { ideal: w }, height: { ideal: h } } }, { video: c.videoDeviceId ? dev : true }];
+    let stream = null, lastErr = null;
+    for (const constraints of attempts) {
+      try {
+        stream = await new Promise((resolve, reject) => {
+          let late = false;
+          const t = setTimeout(() => { late = true; const e = new Error("timeout"); e.name = "TimeoutError"; reject(e); }, 12000);
+          navigator.mediaDevices.getUserMedia(constraints).then((st) => { clearTimeout(t); if (late) st.getTracks().forEach((x) => x.stop()); else resolve(st); }, (e) => { clearTimeout(t); if (!late) reject(e); });
+        });
+        break;
+      } catch (e) { lastErr = e; if (["NotAllowedError", "SecurityError", "NotFoundError", "NotSupportedError", "TimeoutError"].includes(e.name)) break; } // percobaan ke-2 hanya untuk kegagalan resolusi / perangkat sibuk
+    }
+    setStarting(false);
+    if (!stream) { setPvMsg(explainCamErr(lastErr)); return; }
+    streamRef.current = stream;
+    setPreviewing(true);
+    requestAnimationFrame(() => { if (videoRef.current) videoRef.current.srcObject = stream; });
   }
   function stopPreview() { streamRef.current?.getTracks().forEach((t) => t.stop()); streamRef.current = null; setPreviewing(false); }
   useEffect(() => stopPreview, []);
@@ -223,7 +249,7 @@ export default function SettingsCamera({ s, set, only }) {
         <Row label="Display on Start Screen"><Check checked={lv.displayOnStart} onChange={(v) => set(["camera", "liveView", "displayOnStart"], v)} label="Tampilkan live view sebagai latar layar Start" hint="Kamera menyala terus selama layar Start tampil." /></Row>
 
         <Row label="Uji kamera" hint="Pratinjau memakai pengaturan di atas (perangkat, resolusi, mirror, rotasi) sebelum disimpan.">
-          {!previewing ? <Btn onClick={startPreview}>Nyalakan pratinjau</Btn> : (
+          {!previewing ? <div><Btn onClick={startPreview} disabled={starting}>{starting ? "Menyalakan…" : "Nyalakan pratinjau"}</Btn>{pvMsg && <div className="mt-2 max-w-xl"><Notice tone="warn">{pvMsg}</Notice></div>}</div> : (
             <div>
               {pvBox(webcamCam)}
               <div className="mt-2 flex items-center gap-3"><Btn onClick={stopPreview}>Matikan pratinjau</Btn><span className="text-[12px] text-[#55606E]">Putar {pvRot}°{lv.mirror ? " · mirror" : ""}{templateFrame ? " · bingkai ikut slot (contoh 3:4)" : " · kotak putih = area template (contoh 3:4)"}</span></div>
