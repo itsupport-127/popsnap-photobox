@@ -100,6 +100,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
     countdownFirst: cap.countdownFirst ?? 5,
     countdownOthers: cap.countdownOthers ?? 3,
     displaySeconds: cap.displayPhotoSeconds ?? 2,
+    pauseSeconds: cap.pauseSeconds ?? 3,
     capture: async () => {
       recorder.mark(shotIndexNow.current);
       const photo = await camera.capture();
@@ -290,6 +291,9 @@ export default function PhotoSessionScreen({ session, dispatch }) {
               >↺ RETAKE</button>
             )}
           </div>
+        )}
+        {seq.phase === "wait" && !reviewing && (
+          <p className="sess-hint" style={{ fontSize: U(28), bottom: U(40) }}>Bersiap, foto berikutnya sebentar lagi…</p>
         )}
         {canTap && waiting && seq.phase === "idle" && !fullscreen && (!scopeFirst || manualNow) && (
           <p className={`sess-hint${TXT_HINT ? ` ${TXT_HINT}` : ""}`} style={{ fontSize: U(28), bottom: U(40) }}>{manual ? (scopeFirst ? "Ketuk layar atau tombol ● sekali — sisanya otomatis" : "Ketuk layar atau tombol ● untuk mulai potret") : "Ketuk layar atau tombol ● untuk potret sekarang"}</p>

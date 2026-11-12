@@ -1,7 +1,7 @@
 {
   "format": "popsnap-library-settings",
   "version": 1,
-  "savedAt": "2026-11-11T10:44:50.210Z",
+  "savedAt": "2026-11-12T11:30:32.824Z",
   "settings": {
     "event": {
       "name": "POPSNAP",
@@ -68,12 +68,12 @@
       },
       "auto": false,
       "autoCopies": 1,
-      "showButton": true,
       "price": 0,
+      "showButton": true,
       "both": false,
       "autorotate": true,
-      "paper": "auto",
       "fit": "fill",
+      "paper": "auto",
       "limit": {
         "enabled": false,
         "perEvent": 5000,
@@ -85,7 +85,14 @@
     },
     "camera": {
       "mode": "webcam",
+      "orientation": "auto",
       "autoTrigger": true,
+      "liveSource": "camera",
+      "exposure": {
+        "split": false,
+        "live": {},
+        "photo": {}
+      },
       "resolution": 2,
       "videoDeviceId": "",
       "audioDeviceId": "",
@@ -96,18 +103,11 @@
         "model": "",
         "zModel": ""
       },
-      "orientation": "auto",
-      "liveSource": "camera",
-      "exposure": {
-        "split": false,
-        "live": {},
-        "photo": {}
-      },
       "liveView": {
-        "clipRotation": 0,
         "enabled": true,
         "mirror": true,
         "rotation": 0,
+        "clipRotation": 0,
         "displayOnStart": false,
         "guide": true,
         "fitTemplate": false,
@@ -216,13 +216,14 @@
         "triggerKeys": true
       },
       "capture": {
-        "manualScope": "all",
-        "captureHint": "pulse",
         "manualTrigger": true,
+        "manualScope": "first",
+        "captureHint": "pulse",
         "autoSequence": true,
         "countdownFirst": 5,
         "countdownOthers": 5,
         "displayPhotoSeconds": 2,
+        "pauseSeconds": 3,
         "countdownColor": "#FFFFFF",
         "cropLiveview": true,
         "hideCancel": false,

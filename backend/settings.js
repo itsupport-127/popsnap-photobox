@@ -97,7 +97,7 @@ const DEFAULTS = {
       captureHint: "pulse",        // animasi penanda tombol potret: pulse (membesar-mengecil) | bounce (melompat) | wiggle (bergoyang) | off
       manualTrigger: true,         // true = tamu mengetuk layar/tombol dulu, baru hitung mundur -> jepret (tiap foto). false = pakai Automatic Sequence
       autoSequence: true,          // (hanya jika manualTrigger mati) hitung mundur -> jepret -> tampilkan -> foto berikutnya, otomatis
-      countdownFirst: 5, countdownOthers: 3, displayPhotoSeconds: 2, countdownColor: "#FFFFFF",
+      countdownFirst: 5, countdownOthers: 3, displayPhotoSeconds: 2, pauseSeconds: 3, countdownColor: "#FFFFFF",
       cropLiveview: true, hideCancel: false, showThumbnails: true, thumbnailLocation: "bottom",
       sayCheeseImage: "",
     },
@@ -399,6 +399,7 @@ function update(patch) {
       countdownFirst: num(cp.countdownFirst, 0, 30, ccp.countdownFirst),
       countdownOthers: num(cp.countdownOthers, 0, 30, ccp.countdownOthers),
       displayPhotoSeconds: num(cp.displayPhotoSeconds, 0, 20, ccp.displayPhotoSeconds),
+      pauseSeconds: num(cp.pauseSeconds, 0, 30, ccp.pauseSeconds),
       countdownColor: hex(cp.countdownColor, ccp.countdownColor),
       cropLiveview: bool(cp.cropLiveview, ccp.cropLiveview), hideCancel: bool(cp.hideCancel, ccp.hideCancel),
       showThumbnails: bool(cp.showThumbnails, ccp.showThumbnails),

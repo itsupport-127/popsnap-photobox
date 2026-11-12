@@ -10,12 +10,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * @param {boolean} p.manual        true = TIDAK mulai sendiri: menunggu start() (ketuk layar / tombol), baru hitung mundur -> jepret
  * @param {boolean} p.autoSequence  (mode otomatis) false = foto hanya diambil saat tombol rana ditekan
  * @param {boolean} p.autoTrigger   false = setelah hitung mundur menunggu tombol "Ambil foto"
- * @param {number}  p.countdownFirst / countdownOthers / displaySeconds
+ * @param {number}  p.countdownFirst / countdownOthers / displaySeconds / pauseSeconds (jeda setelah foto tampil, sebelum hitung mundur berikutnya)
  * @param {Function} p.capture      async () => dataURL
  * @param {Function} p.onCaptured   (photo) => void
- * @returns {{ phase, count, lastPhoto, shootNow, start }}  phase: idle | countdown | await | flash | review
+ * @returns {{ phase, count, lastPhoto, shootNow, start }}  phase: idle | countdown | await | flash | review | wait
  */
-export default function useShotSequence({ active, needed, shotCount, manual = false, autoSequence, autoTrigger, countdownFirst, countdownOthers, displaySeconds, capture, onCaptured }) {
+export default function useShotSequence({ active, needed, shotCount, manual = false, autoSequence, autoTrigger, countdownFirst, countdownOthers, displaySeconds, pauseSeconds = 0, capture, onCaptured }) {
   const [phase, setPhase] = useState("idle");
   const [count, setCount] = useState(0);
   const [lastPhoto, setLastPhoto] = useState(null);
@@ -23,7 +23,7 @@ export default function useShotSequence({ active, needed, shotCount, manual = fa
   const busy = useRef(false);
   const ownChange = useRef(false); // true = perubahan jumlah foto datang dari hook ini sendiri (bukan retake dari luar)
   const latest = useRef({});
-  latest.current = { capture, onCaptured, displaySeconds, autoTrigger, countdownFirst, countdownOthers, shotCount };
+  latest.current = { capture, onCaptured, displaySeconds, pauseSeconds, needed, manual, autoSequence, autoTrigger, countdownFirst, countdownOthers, shotCount };
 
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   const later = (fn, ms) => { const t = setTimeout(fn, ms); timers.current.push(t); };
@@ -40,10 +40,16 @@ export default function useShotSequence({ active, needed, shotCount, manual = fa
     if (!photo) { setPhase("idle"); return; }
     setLastPhoto(photo);
     const secs = latest.current.displaySeconds;
-    setPhase(secs > 0 ? "review" : "idle");
     ownChange.current = true;
     latest.current.onCaptured(photo);
-    if (secs > 0) later(() => setPhase("idle"), secs * 1000);
+    // Setelah foto tampil: kalau masih ada foto berikutnya & urutannya otomatis, beri jeda "wait" (live view + aba-aba) supaya tamu sempat ganti pose
+    const afterReview = () => {
+      const L = latest.current;
+      if (L.pauseSeconds > 0 && L.needed && !L.manual && L.autoSequence) { setPhase("wait"); later(() => setPhase("idle"), L.pauseSeconds * 1000); }
+      else setPhase("idle");
+    };
+    if (secs > 0) { setPhase("review"); later(afterReview, secs * 1000); }
+    else { setPhase("wait"); later(afterReview, 60); } // 60 ms: beri React waktu memperbarui "needed" setelah foto terakhir
   }, []);
 
   // Mode manual: tamu mengetuk -> mulai hitung mundur (0 detik = langsung jepret)
