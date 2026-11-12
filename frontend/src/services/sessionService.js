@@ -24,27 +24,42 @@ async function flipShot(src) {
 export async function uploadSession(session) {
   // Foto mentah ikut pilihan tamu: kalau memilih Mirror, file mentah yang diunduh juga terbalik seperti yang mereka lihat
   const shots = session.editorState?.mirror ? await Promise.all(session.shots.map(flipShot)) : session.shots;
-  const send = (shotList) => fetch(`${API_BASE}/api/session/finish`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sessionId: session.sessionId,
-      templateId: session.selectedTemplate?.id,
-      paymentMethod: session.paymentMethod,
-      finalImage: session.finalImage,
-      socialConsent: Number.isInteger(session.socialConsent) ? session.socialConsent : undefined, // izin foto (layar Izin Foto): 1 sosmed, 2 mading, 3 keduanya, 0 tidak
-      shots: shotList,
-    }),
-  });
+  // 1) Hasil akhir SAJA (kecil) -> sesi, folder hasil dan QR pasti jadi. 2) Foto mentah menyusul bertahap (lihat /api/session/shots),
+  //    sehingga ukuran total tidak pernah membuat satu permintaan ditolak.
   let res;
-  try { res = await send(shots); } catch (e) { throw new Error("Gagal mengunggah hasil sesi: server booth tidak terjangkau."); }
-  // Ditolak server (mis. data terlalu besar)? Coba lagi hanya dengan gambar akhir supaya hasil tamu tetap tersimpan di folder hasil.
-  // (Foto mentah tidak ikut pada kasus ini; server booth tetap perlu diperbarui agar batasnya longgar.)
-  if (!res.ok && res.status >= 400 && shots?.length) {
-    try { const r2 = await send([]); if (r2.ok) res = r2; } catch { /* pakai respons pertama */ }
-  }
+  try {
+    res = await fetch(`${API_BASE}/api/session/finish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: session.sessionId,
+        templateId: session.selectedTemplate?.id,
+        paymentMethod: session.paymentMethod,
+        finalImage: session.finalImage,
+        socialConsent: Number.isInteger(session.socialConsent) ? session.socialConsent : undefined, // izin foto (layar Izin Foto): 1 sosmed, 2 mading, 3 keduanya, 0 tidak
+        shots: [],
+      }),
+    });
+  } catch (e) { throw new Error("Gagal mengunggah hasil sesi: server booth tidak terjangkau."); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Gagal mengunggah hasil sesi (HTTP ${res.status}).`);
+
+  const CHUNK = 12 * 1024 * 1024; // ~12 MB data URL per permintaan
+  let batch = [], size = 0, offset = 0;
+  const flush = async () => {
+    if (!batch.length) return;
+    const body = JSON.stringify({ sessionId: data.sessionId, key: data.uploadKey, offset, shots: batch });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { const r = await fetch(`${API_BASE}/api/session/shots`, { method: "POST", headers: { "Content-Type": "application/json" }, body }); if (r.ok) break; } catch { /* coba lagi */ }
+      await new Promise((ok) => setTimeout(ok, 400 * (attempt + 1)));
+    }
+    offset += batch.length; batch = []; size = 0;
+  };
+  for (const shot of shots || []) {
+    if (batch.length && size + String(shot).length > CHUNK) await flush();
+    batch.push(shot); size += String(shot).length;
+  }
+  await flush();
   return data;
 }
 

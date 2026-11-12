@@ -1628,6 +1628,46 @@ async function boothOffline() {
 }
 app.get("/api/online", async (req, res) => res.json({ offline: await boothOffline() }));
 
+// Simpan foto mentah (data URL) ke arsip + halaman unduh. offset = jumlah foto yang sudah tersimpan sebelumnya (pengiriman bertahap).
+function saveRawShots(id, stamp, shots, offset) {
+  if (!Array.isArray(shots) || !shots.length) return 0;
+  const rawFolder = path.join(archiveFolder(id), "raw");
+  fs.mkdirSync(rawFolder, { recursive: true });
+  let saved = 0;
+  shots.slice(0, 40).forEach((shot, k) => {
+    const i = offset + k;
+    if (i >= 40) return;
+    const m = DATA_IMG.exec(String(shot));
+    if (!m) return;
+    const buf = Buffer.from(m[2], "base64");
+    fs.writeFileSync(path.join(rawFolder, `shot-${i + 1}.jpg`), buf);
+    try { // salinan di uploads supaya masuk halaman unduh /s/<token> (ikut terhapus otomatis sesuai masa simpan)
+      const rawName = `${nanoid(16)}.jpg`;
+      fs.writeFileSync(path.join(config.dataDir, "uploads", rawName), buf);
+      db.prepare("DELETE FROM session_files WHERE session_id = ? AND kind = 'raw' AND idx = ?").run(id, i + 1);
+      db.prepare("INSERT INTO session_files (session_id, kind, idx, path) VALUES (?, 'raw', ?, ?)").run(id, i + 1, `/uploads/${rawName}`);
+    } catch (e) { console.error("[output] Gagal simpan foto mentah untuk halaman unduh:", e.message); }
+    exportCopy("originals", path.join(`${stamp}_${id}`, `shot-${i + 1}.jpg`), buf);
+    saved++;
+  });
+  return saved;
+}
+
+// Foto mentah dikirim BERTAHAP (beberapa foto per permintaan) setelah hasil akhir tersimpan, supaya sesi dengan kamera beresolusi tinggi
+// tidak pernah terpental karena satu permintaan terlalu besar. Kunci sesi sama dengan unggah GIF / video.
+app.post("/api/session/shots", express.json({ limit: "100mb" }), (req, res) => {
+  const { sessionId, key, offset, shots } = req.body ?? {};
+  const id = String(sessionId ?? "");
+  const k = SAFE_ID.test(id) ? sessionKeys.get(id) : null;
+  if (!k || k.key !== key || k.until < Date.now()) return res.status(403).json({ error: "Kunci sesi tidak valid / kedaluwarsa." });
+  const off = Math.max(0, Math.min(39, Number(offset) || 0));
+  let saved = 0;
+  try { saved = saveRawShots(id, localDate(), shots, off); } catch (e) { console.error("[output] Gagal simpan foto mentah:", e.message); return res.status(500).json({ error: "Gagal menyimpan foto mentah." }); }
+  const tok = db.prepare("SELECT share_token FROM sessions WHERE id = ?").get(id)?.share_token;
+  if (tok && saved) gallery.enqueue(id, tok, "photo"); // file baru -> sinkron ke galeri lagi
+  res.json({ ok: true, saved });
+});
+
 app.post("/api/session/finish", async (req, res) => {
   const { sessionId, templateId, finalImage, shots, paymentMethod, socialConsent } = req.body ?? {};
   // sessionId datang dari browser -> JANGAN dipakai mentah-mentah sebagai nama file/folder (bisa "../../x").
@@ -1653,7 +1693,7 @@ app.post("/api/session/finish", async (req, res) => {
   db.prepare(`
     INSERT INTO sessions (id, template_id, final_image_path, payment_method, expires_at, mode, share_token)
     VALUES (?, ?, ?, ?, ?, 'photo', ?)
-    ON CONFLICT(id) DO UPDATE SET final_image_path = excluded.final_image_path, share_token = COALESCE(excluded.share_token, sessions.share_token)
+    ON CONFLICT(id) DO UPDATE SET final_image_path = COALESCE(excluded.final_image_path, sessions.final_image_path), share_token = COALESCE(excluded.share_token, sessions.share_token)
   `).run(id, templateId ?? null, finalImagePath, paymentMethod ?? null, expiresAt, shareToken);
   // ?? null WAJIB ada — node:sqlite melempar error kalau parameter `undefined`.
   sessionKeys.set(id, { key, until: Date.now() + 60 * 60 * 1000 });
@@ -1669,23 +1709,7 @@ app.post("/api/session/finish", async (req, res) => {
     if (finalBuf) fs.writeFileSync(path.join(sessionFolder, "final.png"), finalBuf);
     if (finalBuf) exportCopy("prints", `${stamp}_${id}.png`, finalBuf);
 
-    if (Array.isArray(shots) && shots.length > 0) {
-      const rawFolder = path.join(sessionFolder, "raw");
-      fs.mkdirSync(rawFolder, { recursive: true });
-      shots.slice(0, 40).forEach((shot, i) => {
-        const m = DATA_IMG.exec(String(shot));
-        if (!m) return;
-        const buf = Buffer.from(m[2], "base64");
-        fs.writeFileSync(path.join(rawFolder, `shot-${i + 1}.jpg`), buf);
-        try { // salinan di uploads supaya masuk halaman unduh /s/<token> (ikut terhapus otomatis sesuai masa simpan)
-          const rawName = `${nanoid(16)}.jpg`;
-          fs.writeFileSync(path.join(config.dataDir, "uploads", rawName), buf);
-          db.prepare("DELETE FROM session_files WHERE session_id = ? AND kind = 'raw' AND idx = ?").run(id, i + 1);
-          db.prepare("INSERT INTO session_files (session_id, kind, idx, path) VALUES (?, 'raw', ?, ?)").run(id, i + 1, `/uploads/${rawName}`);
-        } catch (e) { console.error("[output] Gagal simpan foto mentah untuk halaman unduh:", e.message); }
-        exportCopy("originals", path.join(`${stamp}_${id}`, `shot-${i + 1}.jpg`), buf);
-      });
-    }
+    saveRawShots(id, stamp, shots, 0);
   } catch (err) {
     // Gagal simpan arsip lokal jangan menggagalkan request — konsumen tetap harus dapat link download QR-nya.
     console.error("[output] Gagal simpan arsip lokal:", err.message);
