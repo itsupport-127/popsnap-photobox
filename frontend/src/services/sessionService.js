@@ -24,7 +24,7 @@ async function flipShot(src) {
 export async function uploadSession(session) {
   // Foto mentah ikut pilihan tamu: kalau memilih Mirror, file mentah yang diunduh juga terbalik seperti yang mereka lihat
   const shots = session.editorState?.mirror ? await Promise.all(session.shots.map(flipShot)) : session.shots;
-  const res = await fetch(`${API_BASE}/api/session/finish`, {
+  const send = (shotList) => fetch(`${API_BASE}/api/session/finish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -33,11 +33,18 @@ export async function uploadSession(session) {
       paymentMethod: session.paymentMethod,
       finalImage: session.finalImage,
       socialConsent: Number.isInteger(session.socialConsent) ? session.socialConsent : undefined, // izin foto (layar Izin Foto): 1 sosmed, 2 mading, 3 keduanya, 0 tidak
-      shots,
+      shots: shotList,
     }),
   });
+  let res;
+  try { res = await send(shots); } catch (e) { throw new Error("Gagal mengunggah hasil sesi: server booth tidak terjangkau."); }
+  // Ditolak server (mis. data terlalu besar)? Coba lagi hanya dengan gambar akhir supaya hasil tamu tetap tersimpan di folder hasil.
+  // (Foto mentah tidak ikut pada kasus ini; server booth tetap perlu diperbarui agar batasnya longgar.)
+  if (!res.ok && res.status >= 400 && shots?.length) {
+    try { const r2 = await send([]); if (r2.ok) res = r2; } catch { /* pakai respons pertama */ }
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Gagal mengunggah hasil sesi.");
+  if (!res.ok) throw new Error(data.error || `Gagal mengunggah hasil sesi (HTTP ${res.status}).`);
   return data;
 }
 

@@ -143,7 +143,10 @@ app.use((req, res, next) => { // perubahan template apa pun -> cermin ulang fold
   next();
 });
 app.use(cors());
-app.use(express.json({ limit: "50mb" })); // dinaikkan karena sekarang kirim SEMUA foto mentah (8x) + hasil final sekaligus
+// Hasil sesi = gambar akhir + SEMUA foto mentah (data URL). Kamera beresolusi tinggi (4K / DSLR) bisa melewati 50 MB, jadi
+// khusus rute ini batasnya longgar (server ini hanya menerima dari booth sendiri di komputer yang sama).
+app.use("/api/session/finish", express.json({ limit: "400mb" }));
+app.use(express.json({ limit: "50mb" })); // rute lain
 app.use("/uploads", express.static(path.join(config.dataDir, "uploads")));
 
 const upload = multer({ dest: path.join(config.dataDir, "uploads") });
@@ -2101,6 +2104,15 @@ setInterval(backupDb, 6 * 60 * 60 * 1000);
 
 // Pastikan folder arsip permanen ada sejak backend nyala
 try { fs.mkdirSync(outputDir(), { recursive: true }); } catch (err) { console.error("[arsip] Folder arsip tidak bisa dibuat:", err.message); }
+
+// Penangkap error terakhir: selalu balas JSON (tanpa ini Express membalas HTML dan booth hanya bisa menampilkan pesan umum).
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = err.status || err.statusCode || 500;
+  console.error(`[error] ${req.method} ${req.originalUrl.split("?")[0]} -> ${status} ${err.type || ""} ${err.message}`);
+  const msg = err.type === "entity.too.large" ? "Data sesi terlalu besar untuk diterima server (cek resolusi kamera)." : status >= 500 ? "Terjadi kesalahan di server booth." : err.message;
+  res.status(status).json({ error: msg });
+});
 
 app.listen(config.port, () => {
   console.log(`POPSNAP backend jalan di http://localhost:${config.port}`);
