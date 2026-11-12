@@ -6,8 +6,10 @@ import { clampAdjust, isNeutral } from "../utils/photoAdjust";
  *  - cubit dua jari = zoom, geser satu jari = pindahkan foto, roda mouse = zoom — langsung, tanpa membuka jendela
  *  - ketuk saja (tanpa bergerak) = onTap (buka jendela Zoom / Geser dengan penggeser & tombol)
  * Hasil disimpan lewat onChange(adj | null), sama seperti PhotoAdjustModal.
+ * pan=false (langkah pilih foto): satu jari TIDAK menggeser foto, tapi diteruskan ke onSingleDown (mis. seret untuk tukar/hapus);
+ * hanya cubit dua jari yang menjadi zoom. onPinchStart / onGestureEnd memberi tahu pemanggil agar seretan yang berjalan dibatalkan.
  */
-export default function SlotGestureLayer({ url, adj, onChange, onTap, style, label }) {
+export default function SlotGestureLayer({ url, adj, onChange, onTap, style, label, pan = true, onSingleDown, onPinchStart, onGestureEnd, ...rest }) {
   const ref = useRef(null);
   const pts = useRef(new Map());
   const gest = useRef(null);
@@ -30,11 +32,13 @@ export default function SlotGestureLayer({ url, adj, onChange, onTap, style, lab
   const rect = () => ref.current.getBoundingClientRect();
 
   const down = (e) => {
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* pointer sudah tidak aktif */ }
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const r = rect();
     if (pts.current.size === 1) moved.current = false;
+    if (pts.current.size === 1 && !pan) { gest.current = null; onSingleDown?.(e); return; }
     if (pts.current.size === 2) {
+      onPinchStart?.();
       const [p, q] = [...pts.current.values()];
       gest.current = { mode: "pinch", d0: Math.hypot(p.x - q.x, p.y - q.y) || 1, z0: cur.current.z };
       moved.current = true;
@@ -47,7 +51,7 @@ export default function SlotGestureLayer({ url, adj, onChange, onTap, style, lab
     if (g.mode === "pinch" && pts.current.size >= 2) {
       const [p, q] = [...pts.current.values()];
       apply({ ...cur.current, z: g.z0 * (Math.hypot(p.x - q.x, p.y - q.y) / g.d0) });
-    } else if (g.mode === "pan") {
+    } else if (g.mode === "pan" && pan) {
       const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
       if (!moved.current && Math.hypot(dx, dy) < 8) return;
       moved.current = true;
@@ -59,8 +63,9 @@ export default function SlotGestureLayer({ url, adj, onChange, onTap, style, lab
     pts.current.delete(e.pointerId);
     if (pts.current.size === 0) {
       gest.current = null;
-      if (!wasMoved && e.type === "pointerup") onTap?.();
-    } else if (pts.current.size === 1) {
+      if (!wasMoved && e.type === "pointerup" && pan) onTap?.();
+      onGestureEnd?.();
+    } else if (pts.current.size === 1 && pan) {
       const [p] = [...pts.current.values()], r = rect();
       gest.current = { mode: "pan", x0: p.x, y0: p.y, tx0: cur.current.tx, ty0: cur.current.ty, w: r.width || 1, h: r.height || 1 };
     }
@@ -68,7 +73,7 @@ export default function SlotGestureLayer({ url, adj, onChange, onTap, style, lab
   const wheel = (e) => apply({ ...cur.current, z: cur.current.z * Math.exp(-e.deltaY * 0.0015) });
 
   return (
-    <div ref={ref} role="button" aria-label={label} data-testid="slot-gesture"
+    <div ref={ref} role="button" aria-label={label} data-testid="slot-gesture" {...rest}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}
       style={{ ...style, touchAction: "none", cursor: "grab" }} />
   );

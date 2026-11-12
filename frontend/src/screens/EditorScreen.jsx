@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { ChevronLeft, Trash2, ZoomIn } from "lucide-react";
+import SlotGestureLayer from "../components/SlotGestureLayer";
 import PhotoAdjustModal from "../components/PhotoAdjustModal";
 import { LayerContent, LayerBox, containerStyle } from "../components/TemplatePreview";
 import SesiDecor from "../components/SesiDecor";
@@ -68,6 +69,7 @@ export default function EditorScreen({ session, dispatch }) {
   const trashRef = useRef(null);
   const listRef = useRef(null);
   const suppressClick = useRef(false);
+  const pinching = useRef(false); // sedang cubit dua jari di bingkai (seretan satu jari dibatalkan)
   const [adjSlot, setAdjSlot] = useState(null); // nomor slot yang sedang di-zoom / digeser (jendela Zoom / Geser), null = tertutup
 
   const template = session.selectedTemplate;
@@ -118,11 +120,11 @@ export default function EditorScreen({ session, dispatch }) {
     const info = (ev) => ({ shot, fromSlot, x: ev.clientX, y: ev.clientY, overTrash: overTrash(ev.clientX, ev.clientY), overSlot: slotAt(ev.clientX, ev.clientY) });
     trackPointerDrag(e, {
       scrollEl: fromSlot == null ? listRef.current : null, // dari daftar: geser atas-bawah = scroll, geser jelas ke samping = seret
-      onMove: (ev) => setDrag(info(ev)),
+      onMove: (ev) => { if (!pinching.current) setDrag(info(ev)); },
       onEnd: (ev, released, kind) => {
         suppressClick.current = true;
         setTimeout(() => { suppressClick.current = false; }, 0);
-        if (kind === "drag" && released) {
+        if (kind === "drag" && released && !pinching.current) {
           const d = info(ev);
           const at = chosen.indexOf(shot);
           if (d.overTrash) { if (at >= 0) removeSlot(at); }
@@ -179,24 +181,34 @@ export default function EditorScreen({ session, dispatch }) {
               const shot = chosen[idx];
               const isOver = drag?.overSlot === idx;
               return (
-                <div key={`hit-${layer.id}`} data-slot={idx}
-                  onPointerDown={(e) => shot != null && startDrag(e, shot, idx)}
-                  onClick={() => { if (!suppressClick.current && shot != null) setSelectedSlot((s) => (s === idx ? null : idx)); }}
-                  style={{
+                (() => {
+                  const hitStyle = {
                     position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`,
                     transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, touchAction: "none", cursor: shot != null ? "grab" : "default", boxSizing: "border-box",
                     outline: isOver ? "4px solid #E02843" : selectedSlot === idx ? "3px solid #E02843" : drag ? "2px dashed rgba(255,255,255,.9)" : "none", outlineOffset: -3,
                     background: isOver ? "rgba(224,40,67,.22)" : "transparent", zIndex: 5,
-                  }} />
+                  };
+                  const onClick = () => { if (!suppressClick.current && shot != null) setSelectedSlot((s) => (s === idx ? null : idx)); };
+                  return shot != null ? (
+                    <SlotGestureLayer key={`hit-${layer.id}`} data-slot={idx} label={`Foto ${idx + 1}`} pan={false}
+                      url={session.shots[shot]} adj={session.editorState.adjust?.[idx]}
+                      onChange={(adj) => dispatch({ type: "SET_PHOTO_ADJUST", payload: { slot: idx, adj } })}
+                      onSingleDown={(e) => startDrag(e, shot, idx)}
+                      onPinchStart={() => { pinching.current = true; suppressClick.current = true; setDrag(null); }}
+                      onGestureEnd={() => setTimeout(() => { pinching.current = false; suppressClick.current = false; }, 60)}
+                      onClick={onClick} style={hitStyle} />
+                  ) : <div key={`hit-${layer.id}`} data-slot={idx} style={hitStyle} />;
+                })()
               );
             })}
 
-            {/* Langkah 2: ketuk foto di bingkai = buka Zoom / Geser */}
+            {/* Langkah 2: cubit dua jari = zoom, geser satu jari = pindahkan foto, ketuk = buka Zoom / Geser (penggeser & tombol) */}
             {phase === "style" && plan.slots.map((layer) => {
               const idx = plan.indexByLayer.get(layer.id);
               return chosen[idx] != null && (
-                <div key={`adj-${layer.id}`} role="button" aria-label={`Zoom / geser foto ${idx + 1}`} onClick={() => setAdjSlot(idx)}
-                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, cursor: "pointer", zIndex: 5 }} />
+                <SlotGestureLayer key={`adj-${layer.id}`} label={`Zoom / geser foto ${idx + 1}`} url={session.shots[chosen[idx]]} adj={session.editorState.adjust?.[idx]}
+                  onChange={(adj) => dispatch({ type: "SET_PHOTO_ADJUST", payload: { slot: idx, adj } })} onTap={() => setAdjSlot(idx)}
+                  style={{ position: "absolute", left: `${layer.xPct}%`, top: `${layer.yPct}%`, width: `${layer.widthPct}%`, height: `${layer.heightPct}%`, transform: layer.rotation ? `rotate(${layer.rotation}deg)` : undefined, zIndex: 5 }} />
               );
             })}
 
@@ -303,7 +315,7 @@ export default function EditorScreen({ session, dispatch }) {
         {/* Petunjuk singkat langkah 1 */}
         {phase === "pick" && (
           <p style={{ left: U(L.hint.left), top: U(L.hint.top), width: U(L.hint.width), textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: "#55606E", margin: 0 }}>
-            {filled}/{requiredSlots} foto terpilih{full ? " — seret untuk tukar, atau atur dengan Zoom/Geser" : " — ketuk atau seret foto ke bingkai"}
+            {filled}/{requiredSlots} foto terpilih{full ? " — seret untuk tukar, cubit dua jari untuk zoom" : " — ketuk atau seret foto ke bingkai"}
           </p>
         )}
       </div>
