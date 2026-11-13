@@ -39,6 +39,7 @@ try { db.exec("ALTER TABLE gallery_sync ADD COLUMN folder TEXT"); } catch { /* s
 const ACTIVE_MS = 30 * 60 * 1000;       // sesi masih diperiksa untuk file susulan (GIF/video/klip) selama 30 menit
 const GIVE_UP_MS = 3 * 24 * 3600 * 1000; // lewat ini tidak dicoba lagi
 const state = { lastOkAt: null, lastError: null, busy: false, timer: null };
+const putOk = new Set(); // "sesi:fid" yang PUT-nya sudah sampai ke cloud tapi "done" belum terkonfirmasi: ulang hanya "done", jangan kirim file lagi
 const failedFid = new Map(); // session_id -> fid yang gagal diunggah (minta bucket lain)
 
 function cfg() { return settingsStore.load().payment.cloud; }
@@ -107,8 +108,24 @@ function listLocalDb(sessionId, mode) {
 }
 
 // ---------- komunikasi ----------
+/** Gagal sesaat (timeout / jaringan putus / 5xx) pada panggilan kecil: ulangi sampai `tries` kali. Saat 3 unggahan besar memenuhi
+ *  jaringan toko, jawaban "done" bisa telat padahal filenya sudah sampai; dulu itu langsung dicatat "gagal". */
+async function apiRetry(method, p, body, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try { return await api(method, p, body); }
+    catch (e) {
+      last = e;
+      const transient = e.name === "AbortError" || e.status == null || e.status >= 500 || e.status === 409; // 409 = "belum ada di cloud" (cek telat)
+      if (!transient || e.status === 503 || i === tries - 1) break;
+      await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 async function api(method, p, body) {
-  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 20000);
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 30000);
   try {
     const res = await fetch(`${baseUrl()}/api/v1${p}`, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg().token}` }, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
     const data = await res.json().catch(() => ({}));
@@ -143,7 +160,7 @@ async function syncSession(row) {
     const social = db.prepare("SELECT social_consent FROM sessions WHERE id = ?").get(row.session_id)?.social_consent;
     const body = { token: row.token, mode: row.mode, studioCode: cfg().studioCode || undefined, social: social ?? undefined, files: todo.map((f) => ({ fid: f.fid, kind: f.kind, idx: f.idx, ext: f.ext, size: f.size })) };
     if (failedFid.has(row.session_id) && row.attempts >= 2) body.retry = failedFid.get(row.session_id);
-    const r = await api("POST", "/sessions", body);
+    const r = await apiRetry("POST", "/sessions", body);
     const byFid = new Map(todo.map((f) => [f.fid, f]));
     // Urutan: hasil akhir dulu (itu yang dicari pelanggan), lalu GIF / video / live, lalu foto mentah, terakhir klip.
     // 3 file sekaligus; satu file gagal tidak menghentikan yang lain (yang gagal dicoba lagi di putaran berikut).
@@ -155,8 +172,10 @@ async function syncSession(row) {
       while (!stop && next < ups.length) {
         const { u, f } = ups[next++];
         try {
-          await putFile(u.url, f, u.contentType);
-          await api("POST", `/sessions/${row.token}/done`, { fid: f.fid });
+          const pk = `${row.session_id}:${f.fid}`;
+          if (!putOk.has(pk)) { await putFile(u.url, f, u.contentType); putOk.add(pk); }
+          await apiRetry("POST", `/sessions/${row.token}/done`, { fid: f.fid });
+          putOk.delete(pk);
           db.prepare("INSERT OR IGNORE INTO gallery_files (session_id, fid) VALUES (?, ?)").run(row.session_id, f.fid);
         } catch (e) {
           failedFid.set(row.session_id, f.fid); firstErr = firstErr || e;
@@ -236,9 +255,13 @@ function status() {
   return {
     enabled: !!c.galleryEnabled, configured: !!(baseUrl() && c.token), url: baseUrl(),
     activeSessions: n("SELECT COUNT(*) n FROM gallery_sync WHERE state = 'active'"),
-    sessionsWithErrors: n("SELECT COUNT(*) n FROM gallery_sync WHERE state = 'active' AND last_error IS NOT NULL"),
+    sessionsWithErrors: n("SELECT COUNT(*) n FROM gallery_sync WHERE state = 'active' AND last_error IS NOT NULL AND attempts >= 2"),
     filesUploaded: n("SELECT COUNT(*) n FROM gallery_files"),
-    lastOkAt: state.lastOkAt, lastError: state.lastError, blocked: !!state.blocked,
+    lastOkAt: state.lastOkAt,
+    // Error global lama (state.lastError) tidak pernah dibersihkan bila sesinya sudah dihapus / lewat batas / sudah berhasil lewat jalur lain -> "gagal" muncul padahal file ada di galeri.
+    // Sekarang diambil dari sesi yang MASIH aktif dan gagal >= 2 kali berturut-turut (kegagalan sekali akan dicoba lagi otomatis).
+    lastError: db.prepare("SELECT last_error e FROM gallery_sync WHERE state = 'active' AND last_error IS NOT NULL AND attempts >= 2 ORDER BY created_at DESC LIMIT 1").get()?.e || (state.blocked ? state.lastError : null) || null,
+    blocked: !!state.blocked,
   };
 }
 
@@ -274,7 +297,7 @@ function infoFor(sessionId, folder) {
   const token = row?.token || sessTok;
   const done = new Set(db.prepare("SELECT fid FROM gallery_files WHERE session_id = ?").all(sessionId).map((r) => r.fid));
   const uploaded = files.filter((f) => done.has(f.fid)).length;
-  return { files: files.length, uploaded, token, url: token && baseUrl() ? `${baseUrl()}/s/${token}` : null, state: !files.length ? "empty" : uploaded >= files.length ? "done" : row?.state === "active" ? "queued" : uploaded ? "partial" : "none", error: row?.last_error || null };
+  return { files: files.length, uploaded, token, url: token && baseUrl() ? `${baseUrl()}/s/${token}` : null, state: !files.length ? "empty" : uploaded >= files.length ? "done" : row?.state === "active" ? "queued" : uploaded ? "partial" : "none", error: files.length && uploaded >= files.length ? null : (row?.last_error || null) };
 }
 /** Daftar sesi di arsip (hari terbaru dulu). */
 function listArchive(outDir, days = 14) {
