@@ -62,6 +62,14 @@ export default function useShotSequence({ active, needed, shotCount, manual = fa
     setPhase("countdown");
   }, [shoot]);
 
+  // Jumlah foto berubah DARI LUAR (retake) -> ulang urutan dari awal. Perubahan akibat jepretan kita sendiri diabaikan,
+  // kalau tidak tampilan "review" langsung terpotong.
+  useEffect(() => {
+    if (ownChange.current) { ownChange.current = false; return; }
+    if (!busy.current) { clearTimers(); setPhase("idle"); }
+  }, [shotCount]);
+  // (Efek ini sengaja DI ATAS efek "mulai hitung mundur": kalau di bawahnya, reset ke "idle" menimpa hitung mundur yang baru dimulai setelah retake dan urutan macet.)
+
   // Mulai hitung mundur tiap kali "idle" & masih perlu foto (hanya mode otomatis)
   useEffect(() => {
     if (manual || !active || !needed || !autoSequence || phase !== "idle" || busy.current) return;
@@ -78,13 +86,6 @@ export default function useShotSequence({ active, needed, shotCount, manual = fa
     const t = setTimeout(() => setCount((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [phase, count, shoot]);
-
-  // Jumlah foto berubah DARI LUAR (retake) -> ulang urutan dari awal. Perubahan akibat jepretan kita sendiri diabaikan,
-  // kalau tidak tampilan "review" langsung terpotong.
-  useEffect(() => {
-    if (ownChange.current) { ownChange.current = false; return; }
-    if (!busy.current) { clearTimers(); setPhase("idle"); }
-  }, [shotCount]);
 
   // Di-pause (popup / batal) -> hentikan hitung mundur. JANGAN reset saat berubah menjadi aktif: efek itu
   // berjalan bersamaan dengan efek "mulai hitung mundur" dan akan menimpanya (bug: hitung mundur tidak pernah mulai).

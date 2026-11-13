@@ -51,6 +51,8 @@ export function createInitialSession() {
     shotIndex: 0,          // 0..totalShots
     retakesUsed: 0,
     retakeAt: null,
+    retakeBackup: null,   // foto yang sedang diulang (dipulihkan kalau retake dibatalkan)
+    reviewReached: false, // sudah sampai halaman "Check your photos": sesi tidak bisa dibatalkan lagi
     photosForTemplate: [], // final chosen photos for the template slots
     editorState: {
       filter: "none",
@@ -223,6 +225,7 @@ export function sessionReducer(session, action) {
         shots,
         shotIndex: session.shotIndex + 1,
         retakeAt: null,
+        retakeBackup: null,
       };
     }
     case "RETAKE_SHOT": {
@@ -235,6 +238,20 @@ export function sessionReducer(session, action) {
         shotIndex: Math.max(0, session.shotIndex - 1),
         retakesUsed: session.retakesUsed + 1,
         retakeAt: action.payload.index, // foto baru nanti menggantikan posisi ini
+        retakeBackup: session.shots[action.payload.index] ?? null, // foto lama, dipulihkan kalau tamu membatalkan retake
+      };
+    }
+    case "CANCEL_RETAKE": {
+      // Batal saat retake dari halaman "Check your photos": foto lama kembali ke posisinya, jatah retake tidak terpakai
+      const at = session.retakeAt;
+      if (at == null || !session.retakeBackup) return session;
+      return {
+        ...session,
+        shots: [...session.shots.slice(0, at), session.retakeBackup, ...session.shots.slice(at)],
+        shotIndex: session.shotIndex + 1,
+        retakesUsed: Math.max(0, session.retakesUsed - 1),
+        retakeAt: null,
+        retakeBackup: null,
       };
     }
     case "PHOTO_SESSION_TIMEOUT_EXTEND": {

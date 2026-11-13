@@ -75,6 +75,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const [showTimeoutPopup, setShowTimeoutPopup] = useState(false);
   const [extendedOnce, setExtendedOnce] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Sudah sampai halaman "Check your photos" sekali: sejak itu sesi tidak bisa dibatalkan lagi; Batal saat retake = kembali ke halaman check
+  const reviewReached = !!session.reviewReached;
   const [previewIdx, setPreviewIdx] = useState(null); // nomor foto yang sedang dilihat besar (ketuk thumbnail)
   const needed = session.shotIndex < totalShots;
   const paused = showTimeoutPopup || confirmCancel || previewIdx !== null;
@@ -83,8 +85,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
   // Mode ketuk: "all" = tiap foto diketuk; "first" = ketuk sekali di foto pertama (atau saat retake), sisanya otomatis
   const scopeFirst = cap.manualTrigger !== false && cap.manualScope === "first";
-  // 'Foto pertama saja': ketuk sekali di foto pertama; foto berikutnya DAN foto ulang (retake) otomatis mulai hitung mundur sendiri.
-  const manualNow = cap.manualTrigger !== false && (!scopeFirst || session.shots.length === 0);
+  // 'Foto pertama saja': ketuk sekali di foto pertama ATAU saat foto ulang (retake: tamu perlu bersiap lagi); foto berikutnya otomatis.
+  const manualNow = cap.manualTrigger !== false && (!scopeFirst || session.shots.length === 0 || session.retakeAt != null);
   // Nama kelas ditulis utuh (bukan disusun `sess-capture--${hint}`): Tailwind v4 membuang kelas @layer components yang tidak ditemukan
   // utuh di kode sumber, sehingga animasi tidak pernah ikut terbuat.
   const hint = cap.captureHint ?? "pulse";
@@ -139,6 +141,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   useEffect(() => {
     if (allDone && retakesLeft <= 0 && !busyPhase && !paused) dispatch({ type: "FORCE_TO_EDITOR" });
   }, [allDone, retakesLeft, busyPhase, paused, dispatch]);
+
+  useEffect(() => { if (allDone && !session.reviewReached) dispatch({ type: "MERGE", payload: { reviewReached: true } }); }, [allDone, session.reviewReached, dispatch]);
 
   // Waktu pratinjau akhir (otomatis lanjut ke editor)
   const [reviewLeft, setReviewLeft] = useState(REVIEW_SECONDS);
@@ -339,7 +343,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         )}
 
         {/* Tombol batal (kiri atas) + hitung mundur sesi (kanan atas) */}
-        {!cap.hideCancel && <button onClick={() => setConfirmCancel(true)} className="pay-mini" style={{ left: U(V(227, 60, 60)), top: U(V(16, 24, 20)), height: U(52), padding: `0 ${U(26)}`, fontSize: U(26) }}>✕ Batal</button>}
+        {!cap.hideCancel && !(reviewReached && retakeAt == null) && <button onClick={() => (reviewReached ? dispatch({ type: "CANCEL_RETAKE" }) : setConfirmCancel(true))} className="pay-mini" style={{ left: U(V(227, 60, 60)), top: U(V(16, 24, 20)), height: U(52), padding: `0 ${U(26)}`, fontSize: U(26) }}>✕ Batal</button>}
         <div className="pay-timer" role="timer" style={{ left: U(V(1341, 859, 979)), top: U(V(14, 24, 20)), width: U(161), height: U(56), fontSize: U(40) }}>{timerText}</div>
 
         {/* Baris bawah (desain): Take | logo | Retake */}
@@ -405,7 +409,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-4 z-30">
           <div className="modal-card p-5 sm:p-8 max-w-sm w-full text-center">
             <p className="display-h3 mb-2">Batalkan sesi?</p>
-            <p className="mb-5 text-sm sm:text-base text-[#55606E]">Foto yang sudah diambil akan hilang dan pembayaran tidak dikembalikan otomatis.</p>
+            <p className="mb-5 text-sm sm:text-base text-[#55606E]">Peringatan: semua foto yang sudah diambil akan hilang dan tidak bisa dikembalikan. Pembayaran juga tidak dikembalikan otomatis.</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setConfirmCancel(false)} className="btn-pop btn-outline !border-pop-dark !text-pop-dark px-5 py-2.5">Lanjutkan</button>
               <button onClick={() => dispatch({ type: "CANCEL_SESSION" })} className="btn-pop px-5 py-2.5">Ya, batalkan</button>
