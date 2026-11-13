@@ -7,7 +7,7 @@ import useCountdown from "../hooks/useCountdown";
 import { uploadSession, uploadMedia, uploadClip, uploadLive } from "../services/sessionService";
 import { buildAnimatedAssets, buildRevealGif } from "../utils/animate";
 import { whenClipsReady, hasClips } from "../utils/clipStore";
-import { composeImage } from "../utils/composeImage";
+import { consumeComposeWarnings, composeImage } from "../utils/composeImage";
 import { dataUrlToImageData, encodeGif } from "../utils/gif";
 import SesiDecor from "../components/SesiDecor";
 import ResultLoading from "../components/ResultLoading";
@@ -59,6 +59,7 @@ export default function ResultScreen({ session, dispatch }) {
   const [step, setStep] = useState("main"); // main = layar hasil | copies = pilih jumlah Add Print | pay = bayar QRIS Add Print
   const [copiesN, setCopiesN] = useState(1);
   const [printMsg, setPrintMsg] = useState(null);
+  const [staffWarn, setStaffWarn] = useState(null); // masalah di balik layar (filter gagal / foto mentah tak terkirim): teks kecil untuk staf, tidak mengganggu tamu
   const [printWarn, setPrintWarn] = useState(null); // printer offline / kertas habis -> "hubungi CS" (hanya peringatan, cetak tetap dicoba)
   const autoPrinted = useRef(false);
   async function doPrint(copies) {
@@ -126,7 +127,7 @@ export default function ResultScreen({ session, dispatch }) {
   useEffect(() => {
     if (!isPhoto) return;
     let cancelled = false;
-    setError(null); setGenDone(false);
+    setError(null); setGenDone(false); setStaffWarn(null);
     (async () => {
       try {
         const template = session.selectedTemplate;
@@ -138,10 +139,14 @@ export default function ResultScreen({ session, dispatch }) {
           backgroundColor: template?.backgroundColor, layers: template?.layers ?? [], photos: chosen, editorState: session.editorState,
         });
         if (cancelled) return;
+        const cw = consumeComposeWarnings();
         setFinalImage(composed);
         const up = await uploadSession({ ...session, finalImage: composed });
         if (cancelled) return;
         if (up.offline) setOffline(true);
+        const warns = [...cw];
+        if (up.rawFailed) warns.push(`${up.rawFailed} foto mentah gagal tersimpan (hasil akhir aman).`);
+        setStaffWarn(warns.length ? warns.join(" ") : null);
         dispatch({ type: "SET_DOWNLOAD_URL", payload: { url: up.downloadUrl } });
         dispatch({ type: "MERGE", payload: { sessionId: up.sessionId, uploadKey: up.uploadKey } });
 
@@ -355,6 +360,7 @@ export default function ResultScreen({ session, dispatch }) {
             {showFin && <button type="button" className="strip-btn" onClick={() => dispatch({ type: "DONE" })}
               style={{ left: U(x0 + (showAdd ? aw + gap : 0)), top: U(y), width: U(fw), height: U(bh), fontSize: U(fs), background: "#ABDBAB", color: "#565656" }}>Finish</button>}
             {!printMsg && printWarn && <p style={{ left: U(cx - 300), top: U(y + bh + 14), width: U(600), margin: 0, textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: "#ffd0d0", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{printWarn}</p>}
+            {staffWarn && <div role="status" style={{ position: "fixed", left: 10, bottom: 8, maxWidth: "60vw", fontSize: 13, color: "#ffe9a8", background: "rgba(0,0,0,.55)", padding: "4px 8px", borderRadius: 6, zIndex: 5, pointerEvents: "none" }}>⚠ Info staf: {staffWarn}</div>}
             {printMsg && <p style={{ left: U(cx - 300), top: U(y + bh + 14), width: U(600), margin: 0, textAlign: "center", fontSize: U(24), fontStyle: "italic", fontWeight: 700, color: printMsg.err ? "#ffd0d0" : "#fff", textShadow: "0 1px 3px rgba(0,0,0,.4)" }}>{printMsg.t}</p>}
           </>);
         })()}

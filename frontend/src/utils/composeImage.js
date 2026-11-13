@@ -31,6 +31,10 @@ import { applyLut, loadLut } from "./lut";
  * @param {object} params.editorState - { filter, mirror } — cuma berlaku ke layer "photo-slot"
  * @returns {Promise<string>} dataURL hasil akhir (PNG)
  */
+let composeWarnings = [];
+/** Peringatan dari composeImage terakhir (mis. filter gagal dimuat); dibaca sekali lalu dikosongkan. */
+export function consumeComposeWarnings() { const w = composeWarnings; composeWarnings = []; return w; }
+
 export async function composeImage({ canvasWidth, canvasHeight, layers = [], photos = [], editorState = { filter: "none", mirror: false }, backgroundColor = "#ffffff" }) {
   const canvas = document.createElement("canvas");
   canvas.width = canvasWidth;
@@ -85,6 +89,7 @@ async function drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, pho
           for (let attempt = 0; attempt < 2; attempt++) { // gagal sesaat (jaringan / berkas sibuk): coba sekali lagi sebelum menyerah
             try { img = applyLut(img, await loadLut(lutF.url, lutF.size), lutF.intensity ?? 100); lutErr = null; break; } catch (e) { lutErr = e; }
           }
+          if (lutErr) composeWarnings.push(`Filter "${editorState.filter}" gagal dimuat, foto tercetak tanpa filter.`);
           if (lutErr) console.error(`[filter] LUT "${editorState.filter}" gagal dimuat (${lutErr.message}); foto ini dicetak TANPA filter.`);
         }
         // Bayangan digambar dulu dari bentuk slot (tidak bisa dari foto yang di-clip, karena bayangan ikut terpotong)
