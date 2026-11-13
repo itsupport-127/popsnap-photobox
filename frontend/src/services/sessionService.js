@@ -45,14 +45,16 @@ export async function uploadSession(session) {
   if (!res.ok) throw new Error(data.error || `Gagal mengunggah hasil sesi (HTTP ${res.status}).`);
 
   const CHUNK = 12 * 1024 * 1024; // ~12 MB data URL per permintaan
-  let batch = [], size = 0, offset = 0;
+  let batch = [], size = 0, offset = 0, rawFailed = 0;
   const flush = async () => {
     if (!batch.length) return;
     const body = JSON.stringify({ sessionId: data.sessionId, key: data.uploadKey, offset, shots: batch });
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try { const r = await fetch(`${API_BASE}/api/session/shots`, { method: "POST", headers: { "Content-Type": "application/json" }, body }); if (r.ok) break; } catch { /* coba lagi */ }
-      await new Promise((ok) => setTimeout(ok, 400 * (attempt + 1)));
+    let sent = false;
+    for (let attempt = 0; attempt < 5 && !sent; attempt++) {
+      try { const r = await fetch(`${API_BASE}/api/session/shots`, { method: "POST", headers: { "Content-Type": "application/json" }, body }); sent = r.ok; } catch { /* coba lagi */ }
+      if (!sent) await new Promise((ok) => setTimeout(ok, 500 * (attempt + 1)));
     }
+    if (!sent) { rawFailed += batch.length; console.error(`[upload] ${batch.length} foto mentah GAGAL terkirim ke backend booth (sesi ${data.sessionId}). Hasil akhir tetap aman.`); }
     offset += batch.length; batch = []; size = 0;
   };
   for (const shot of shots || []) {
@@ -60,7 +62,7 @@ export async function uploadSession(session) {
     batch.push(shot); size += String(shot).length;
   }
   await flush();
-  return data;
+  return rawFailed ? { ...data, rawFailed } : data; // rawFailed = jumlah foto mentah yang tidak sampai (hasil akhir tetap tersimpan)
 }
 
 /**

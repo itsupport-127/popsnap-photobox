@@ -63,13 +63,14 @@ export default function CameraSettingsPage() {
     setBusy(true); setErr(""); setMsg("");
     try {
       const target = { ...(ex[t] || {}) };
-      let cur = info;
+      let cur = info, failed = 0;
       for (const { key } of PROPS) {
         const v = target[key];
         if (v == null || cur?.[key]?.cur === v) continue;
-        try { const r = await setCameraExposure(key, v); if (r?.info) cur = r.info; } catch { /* abaikan: server tetap mencoba lagi nanti */ }
+        try { const r = await setCameraExposure(key, v); if (r?.info) cur = r.info; } catch { failed++; }
       }
       if (cur) setInfo(cur);
+      if (failed) setErr(`${failed} pengaturan eksposur tidak diterima kamera, jadi nilai di kamera bisa berbeda dari yang tampil. Klik muat ulang, lalu atur lagi.`);
       setTab(t);
     } finally { setBusy(false); }
   }

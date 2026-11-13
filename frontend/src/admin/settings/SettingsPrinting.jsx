@@ -17,11 +17,13 @@ const PAPER_IN = { "2x6": [2, 6], "4x6": [4, 6], "5x7": [5, 7], "6x8": [6, 8], "
  *  Merah bergaris = bagian yang TERPOTONG (keluar kertas), biru bergaris = kertas kosong (bingkai putih). Plus tombol tes cetak dengan template asli + garis panduan. */
 export function PrintPreview({ pr }) {
   const [tpls, setTpls] = useState([]);
+  const [tplErr, setTplErr] = useState(null);
+  const [tplLoaded, setTplLoaded] = useState(false);
   const [id, setId] = useState("");
   const [img, setImg] = useState(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { let dead = false; listTemplates().then((t) => { if (!dead && Array.isArray(t)) setTpls(t.filter((x) => x.canvasWidth && x.canvasHeight)); }).catch(() => {}); return () => { dead = true; }; }, []);
+  useEffect(() => { let dead = false; listTemplates().then((t) => { if (!dead && Array.isArray(t)) setTpls(t.filter((x) => x.canvasWidth && x.canvasHeight)); if (!dead) setTplLoaded(true); }).catch((e) => { if (!dead) { setTplErr(e?.message || "backend tidak menjawab"); setTplLoaded(true); } }); return () => { dead = true; }; }, []);
   const t = tpls.find((x) => String(x.id) === String(id)) ?? tpls[0];
 
   // Gambar template (slot foto diisi warna contoh) -> dipakai pratinjau & tes cetak
@@ -43,6 +45,7 @@ export function PrintPreview({ pr }) {
     return () => { dead = true; };
   }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (tplErr) return <Notice tone="warn">Daftar template gagal dimuat ({tplErr}). Pratinjau & cek ukuran cetak belum bisa ditampilkan; muat ulang halaman ini.</Notice>;
   if (!t) return null;
   const W = Number(t.canvasWidth), H = Number(t.canvasHeight);
   const dup = pr.strip2x6 && H / W >= 2.5;
@@ -98,6 +101,7 @@ export function PrintPreview({ pr }) {
           <div className="text-[#6B7684]">Pratinjau tidak memperhitungkan batas cetak printer (lihat Cetak halaman uji untuk mengukurnya).</div>
           <div className="flex items-center gap-3 pt-1"><Btn onClick={testPrint} disabled={!canPrintNow() || !img || busy}>Cetak tes dengan template ini</Btn>{msg && <span className={`text-[12px] ${msg.tone === "error" ? "text-red-600" : "text-emerald-600"}`}>{msg.t}</span>}</div>
           {!canPrintNow() && <div className="text-[#6B7684]">Tombol tes cetak hanya aktif di aplikasi desktop (.exe).</div>}
+          {canPrintNow() && !img && <div className="text-[#6B7684]">Tombol tes cetak nonaktif karena template ini belum punya gambar. Buka template di editor, simpan, lalu coba lagi.</div>}
         </div>
       </div>
     </div>

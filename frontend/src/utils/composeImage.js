@@ -81,7 +81,11 @@ async function drawLayer(ctx, layer, canvasWidth, canvasHeight, editorState, pho
       if (img) {
         const lutF = getLutFilter(editorState.filter);
         if (lutF) { // filter LUT (.cube): diproses penuh resolusi sebelum digambar
-          try { img = applyLut(img, await loadLut(lutF.url, lutF.size), lutF.intensity ?? 100); } catch { /* LUT gagal dimuat: pakai foto asli */ }
+          let lutErr = null;
+          for (let attempt = 0; attempt < 2; attempt++) { // gagal sesaat (jaringan / berkas sibuk): coba sekali lagi sebelum menyerah
+            try { img = applyLut(img, await loadLut(lutF.url, lutF.size), lutF.intensity ?? 100); lutErr = null; break; } catch (e) { lutErr = e; }
+          }
+          if (lutErr) console.error(`[filter] LUT "${editorState.filter}" gagal dimuat (${lutErr.message}); foto ini dicetak TANPA filter.`);
         }
         // Bayangan digambar dulu dari bentuk slot (tidak bisa dari foto yang di-clip, karena bayangan ikut terpotong)
         if (shadow) {

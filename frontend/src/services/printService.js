@@ -91,7 +91,7 @@ export async function printFinal({ dataUrl, sessionId, copies = 1, template }) {
   }
   else r = browserPrint(dataUrl);
   if (r.ok) {
-    fetch(`${API_BASE}/api/print/record`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, copies, printer: unit.name }) }).catch(() => {});
+    recordPrint({ sessionId, copies, printer: unit.name });
   }
   return r;
 }
@@ -102,4 +102,16 @@ function browserPrint(dataUrl) {
   w.document.write(`<style>@page{margin:0}html,body{margin:0}img{width:100%;display:block}</style><img src="${dataUrl}" onload="setTimeout(()=>{print();close()},300)">`);
   w.document.close();
   return { ok: true };
+}
+
+/** Catat cetakan ke backend (statistik & perkiraan sisa kertas). Gagal -> coba lagi beberapa kali di latar, jangan mengganggu tamu. */
+function recordPrint(payload) {
+  const delays = [1000, 3000, 8000, 20000];
+  const attempt = (i) => fetch(`${API_BASE}/api/print/record`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+    .catch((e) => {
+      if (i < delays.length) setTimeout(() => attempt(i + 1), delays[i]);
+      else console.error(`[cetak] pencatatan cetak gagal (${e.message}); statistik / sisa kertas bisa kurang 1 cetakan.`);
+    });
+  attempt(0);
 }

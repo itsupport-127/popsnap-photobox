@@ -36,7 +36,8 @@ export default function SettingsDisplay({ s, set, setError, only }) {
   const ss = d.startScreen, cap = d.capture, sh = d.sharing, rm = d.reminder, lk = d.lock;
   const pinSet = s.general.security.pinSet;
   const [templates, setTemplates] = useState([]);
-  useEffect(() => { listTemplates().then((t) => setTemplates(t || [])).catch(() => {}); }, []);
+  const [tplErr, setTplErr] = useState(null);
+  useEffect(() => { listTemplates().then((t) => setTemplates(t || [])).catch((e) => setTplErr(e?.message || "backend tidak menjawab")); }, []);
   const favCount = templates.filter((t) => t.favorite).length;
 
   const items = rm.items;
@@ -69,6 +70,7 @@ export default function SettingsDisplay({ s, set, setError, only }) {
         <Row label="Template" hint={ss.templateChoice !== "single" ? `${favCount} template Live (favorit ★) tampil di booth · ${templates.length - favCount} Draft tidak tampil. Atur di Template Editor: klik bintang ★.` : undefined}>
           <Select value={ss.templateChoice} onChange={(v) => set(["display", "startScreen", "templateChoice"], v)} className="max-w-sm"
             options={[["favorites", "Tamu memilih dari template Live (favorit ★)"], ["single", "Pakai satu template saja (tamu tidak memilih)"]]} />
+          {tplErr && <div className="mt-2"><Notice tone="warn">Daftar template gagal dimuat ({tplErr}). Jumlah template Live di atas belum benar; muat ulang halaman ini.</Notice></div>}
           {ss.templateChoice !== "single" && templates.length > 0 && favCount === 0 && (
             <div className="mt-2"><Notice tone="warn">Belum ada template Live. Booth tidak akan menampilkan template apa pun sampai kamu menandai minimal satu template dengan bintang ★ di Template Editor.</Notice></div>
           )}
