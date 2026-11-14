@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setFullscreen: (on) => ipcRenderer.invoke("kiosk:set-fullscreen", on),
     quit: () => ipcRenderer.invoke("kiosk:quit"),
     showTouchKeyboard: () => ipcRenderer.invoke("kiosk:show-touch-keyboard"),
+    readClipboard: () => ipcRenderer.invoke("kiosk:read-clipboard"),
     onRequestQuit: (cb) => {
       const h = () => cb();
       ipcRenderer.on("kiosk:request-quit", h);

@@ -156,7 +156,9 @@ export default function PaymentScreen({ session, dispatch }) {
   async function pasteFromClipboard() {
     setPasteMsg(null);
     try {
-      const code = extractCode(await navigator.clipboard.readText(), 12);
+      // Di aplikasi desktop (.exe) baca lewat proses utama; navigator.clipboard hanya cadangan (browser biasa)
+      const raw = window.electronAPI?.kiosk?.readClipboard ? await window.electronAPI.kiosk.readClipboard() : await navigator.clipboard.readText();
+      const code = extractCode(raw, 12);
       if (!code) return setPasteMsg("Clipboard kosong.");
       setVoucherInput(code);
       setVoucherError(null);

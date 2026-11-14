@@ -9,7 +9,7 @@
 //    dijadikan 1 aplikasi utuh, bukan 2 proses terpisah
 // ==========================================================
 
-const { app, BrowserWindow, ipcMain, Menu, dialog, Tray, nativeImage, session } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, dialog, Tray, nativeImage, session, clipboard } = require("electron");
 const BACKEND_URL = "http://127.0.0.1:4000";
 const path = require("path");
 const fs = require("fs");
@@ -292,8 +292,8 @@ else app.on("second-instance", () => showWindow());
 
 if (gotLock) app.whenReady().then(() => {
   // Izin browser: hanya kamera/mikrofon & layar penuh (selain itu ditolak)
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(["media", "fullscreen"].includes(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ["media", "fullscreen"].includes(permission));
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(["media", "fullscreen", "clipboard-read", "clipboard-sanitized-write"].includes(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => ["media", "fullscreen", "clipboard-read", "clipboard-sanitized-write"].includes(permission));
   if (!isDev) createTray();
   startBackend();
   startBackendWatch();
@@ -323,6 +323,8 @@ ipcMain.handle("kiosk:set-fullscreen", (_e, on) => {
   return !!mainWindow?.isFullScreen();
 });
 // Keyboard sentuh Windows (TabTip.exe). Hanya Windows; di OS lain tidak melakukan apa-apa.
+// Tombol "Tempel" di layar voucher: baca clipboard lewat proses utama (navigator.clipboard.readText ditolak Chromium di kiosk, tanpa izin).
+ipcMain.handle("kiosk:read-clipboard", () => { try { return String(clipboard.readText() || "").slice(0, 500); } catch { return ""; } });
 ipcMain.handle("kiosk:show-touch-keyboard", () => {
   if (process.platform !== "win32") return false;
   try {
