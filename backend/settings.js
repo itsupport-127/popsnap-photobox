@@ -136,8 +136,8 @@ const DEFAULTS = {
   // Hanya berlaku untuk template yang saklar "Template animasi"-nya dinyalakan di Template Editor.
   animated: {
     enabled: true,
-    secondsBefore: 1.5, // detik SEBELUM jepret yang ikut direkam (momen siap-siap)
-    secondsAfter: 2,    // detik SESUDAH jepret (reaksi tertawa / tos)
+    secondsBefore: 3,   // detik SEBELUM jepret yang ikut direkam (momen siap-siap)
+    secondsAfter: 4,    // detik SESUDAH jepret (reaksi tertawa / tos)
     fps: 10,
     loop: "pingpong",   // pingpong = maju-mundur (mulus) | loop = ulang dari awal
     gifWidth: 480,      // lebar GIF template (px)
@@ -451,8 +451,8 @@ function update(patch) {
     const a = p.animated, ca = cur.animated;
     next.animated = {
       enabled: bool(a.enabled, ca.enabled),
-      secondsBefore: Math.round(num(Number(a.secondsBefore) * 10, 0, 50, ca.secondsBefore * 10)) / 10,
-      secondsAfter: Math.round(num(Number(a.secondsAfter) * 10, 0, 40, ca.secondsAfter * 10)) / 10,
+      secondsBefore: Math.round(num(Number(a.secondsBefore) * 10, 0, 100, ca.secondsBefore * 10)) / 10,
+      secondsAfter: Math.round(num(Number(a.secondsAfter) * 10, 0, 100, ca.secondsAfter * 10)) / 10,
       fps: num(a.fps, 5, 15, ca.fps),
       loop: pick(a.loop, ["pingpong", "loop"], ca.loop),
       gifWidth: num(a.gifWidth, 240, 800, ca.gifWidth),

@@ -32,8 +32,8 @@ export default function SettingsMedia({ s, set, only }) {
       </Card>)}
       {vis("LIVE (VIDEO MOMEN)") && (
       <Card title="LIVE (VIDEO MOMEN)" hint="Dinyalakan di kartu Hasil Akhir. Tiap foto merekam klip singkat sebelum & sesudah jepret; hasilnya video Live (momen bergerak di tiap slot template) + klip mentah per foto.">
-        <Row label="Sebelum jepret (detik)" hint="0–5. Momen bersiap sebelum rana."><F value={a.secondsBefore} min={0} onCommit={(x) => set(["animated", "secondsBefore"], x)} /></Row>
-        <Row label="Sesudah jepret (detik)" hint="0–4. Reaksi setelah rana."><F value={a.secondsAfter} min={0} onCommit={(x) => set(["animated", "secondsAfter"], x)} /></Row>
+        <Row label="Sebelum jepret (detik)" hint="0–10. Momen bersiap sebelum rana. Bawaan 3 dtk."><F value={a.secondsBefore} min={0} onCommit={(x) => set(["animated", "secondsBefore"], x)} /></Row>
+        <Row label="Sesudah jepret (detik)" hint="0–10. Reaksi setelah rana. Bawaan 4 dtk."><F value={a.secondsAfter} min={0} onCommit={(x) => set(["animated", "secondsAfter"], x)} /></Row>
         <Row label="Frame per detik" hint="5–15"><N value={a.fps} min={5} onCommit={(x) => set(["animated", "fps"], x)} /></Row>
         <Row label="Pola putar"><Select value={a.loop} onChange={(x) => set(["animated", "loop"], x)} options={[["pingpong", "Maju-mundur (mulus)"], ["loop", "Ulang dari awal"]]} /></Row>
         <Row label="Lebar GIF template (px)" hint="240–800"><N value={a.gifWidth} min={240} onCommit={(x) => set(["animated", "gifWidth"], x)} /></Row>
