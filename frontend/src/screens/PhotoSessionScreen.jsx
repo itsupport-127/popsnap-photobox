@@ -183,7 +183,13 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const thumbMode = THUMB_MODES.includes(lvCfg.thumbMode) ? lvCfg.thumbMode : "ratio";
   const shaped = thumbMode === "shape" || thumbMode === "each";
   const photoAR = shotAR || camAspect || 1.5;
-  const slotFor = (p) => (thumbMode === "each" ? slotOf(p) : slotOf(0));
+  // Slot template berbeda rasio / bentuk: kotak foto otomatis ikut slotnya masing-masing (kalau tidak, potongan di thumbnail beda dari hasil akhir)
+  const slotsDiffer = totalShots > 1 && Array.from({ length: totalShots }, (_, p) => p).some((p) => {
+    const a = slotOf(p), b = slotOf(0);
+    return a && b && (Math.abs((slotARof(a) || 0) - (slotARof(b) || 0)) > 0.02 || (a.shapeKind || "rect") !== (b.shapeKind || "rect"));
+  });
+  const perSlot = thumbMode === "each" || (slotsDiffer && (thumbMode === "ratio" || thumbMode === "shape"));
+  const slotFor = (p) => (perSlot ? slotOf(p) : slotOf(0));
   const kindOf = (p) => slotFor(p)?.shapeKind || "rect";
   const slotARat = (p) => slotARof(slotFor(p)) || aspect || 1.5;
   const arFor = (p) => (thumbMode === "frame" || thumbMode === "whole" ? photoAR : slotARat(p));
@@ -195,6 +201,8 @@ export default function PhotoSessionScreen({ session, dispatch }) {
   const blockGap = V(0, 60, 40), regionTop = V(0, 110, 90), regionH = V(0, 1450, 930);
   // Penuhi area layar: kotak kamera memakai sisa tinggi di atas dua baris thumbnail
   const areaH = stacked ? Math.max(300, regionH - blockGap - (2 * tile.h + GAP) - 40) : FH;
+  // Penanda area template di live view mengikuti slot untuk foto BERIKUTNYA (slot bisa berbeda-beda rasionya)
+  const guideAR = slotARof(slotOf(Math.min(nextSlot, Math.max(0, totalShots - 1)))) || aspect;
   const boxAspect = fitTpl ? aspect : fillArea ? FW / areaH : camAspect || 3 / 2;
   const frame = fillArea ? { w: FW, h: areaH } : fit(boxAspect, FW, FH);
   const renderTile = (p) => {
@@ -274,7 +282,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           cursor: canTap && waiting ? "pointer" : "default",
         }}
       >
-        <LiveView camera={camera} aspect={boxAspect} crop={fitTpl || fillArea} fill onAspect={setCamAspect} mirror={mirror} guide={firstSlot && !fitTpl ? aspect : null} />
+        <LiveView camera={camera} aspect={boxAspect} crop={fitTpl || fillArea} fill onAspect={setCamAspect} mirror={mirror} guide={firstSlot && !fitTpl ? guideAR : null} />
         {camera.error && <p className="absolute inset-0 flex items-center justify-center text-center px-6 font-bold" style={{ color: "#FFD9DE", fontSize: U(30) }}>{camera.error}</p>}
 
         {seq.phase === "countdown" && <CountdownOverlay count={seq.count} label={`Foto ${Math.min(nextSlot + 1, totalShots)} dari ${totalShots}`} />}

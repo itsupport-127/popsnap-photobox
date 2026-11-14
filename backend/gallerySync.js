@@ -158,7 +158,7 @@ async function syncSession(row) {
   const todo = all.filter((f) => !done.has(f.fid));
   if (todo.length) {
     const social = db.prepare("SELECT social_consent FROM sessions WHERE id = ?").get(row.session_id)?.social_consent;
-    const body = { token: row.token, mode: row.mode, studioCode: cfg().studioCode || undefined, social: social ?? undefined, files: todo.map((f) => ({ fid: f.fid, kind: f.kind, idx: f.idx, ext: f.ext, size: f.size })) };
+    const body = { token: row.token, txNo: txNoFor(row.session_id), mode: row.mode, studioCode: cfg().studioCode || undefined, social: social ?? undefined, files: todo.map((f) => ({ fid: f.fid, kind: f.kind, idx: f.idx, ext: f.ext, size: f.size })) };
     if (failedFid.has(row.session_id) && row.attempts >= 2) body.retry = failedFid.get(row.session_id);
     const r = await apiRetry("POST", "/sessions", body);
     const byFid = new Map(todo.map((f) => [f.fid, f]));
@@ -267,10 +267,19 @@ function status() {
 
 /** Tulis popsnap-share.json di folder arsip sesi: berisi token link galeri. Dipakai halaman "Unggah manual" di website galeri
  *  (dari PC CS lewat jaringan bersama) supaya file masuk ke link yang SAMA dengan QR yang sudah dilihat pelanggan. */
-function writeShareFile(folder, token, mode, social) {
+/** Nomor transaksi (PB-<studio>-<tanggal>-<urut>) untuk sesi ini: dikirim ke galeri & ditulis di popsnap-share.json supaya satu sesi bisa dilacak dengan nomor transaksi DAN kode link. */
+function txNoFor(sessionId) {
+  try {
+    const r = db.prepare("SELECT order_no FROM tx_log WHERE session_id = ? ORDER BY created_at ASC LIMIT 1").get(sessionId);
+    if (r?.order_no) return r.order_no;
+  } catch { /* tabel belum ada / tidak terhubung ke kasir */ }
+  return /^PB-[A-Z0-9]{3,8}-\d{6}-\d{3,6}$/i.test(String(sessionId)) ? String(sessionId).toUpperCase() : undefined;
+}
+
+function writeShareFile(folder, token, mode, social, txNo) {
   if (!ready() || !token) return;
   try {
-    fs.writeFileSync(path.join(folder, "popsnap-share.json"), JSON.stringify({ token, mode: mode || "photo", social: Number.isInteger(social) ? social : null, studioCode: cfg().studioCode || "", url: shareUrlFor(token), createdAt: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(path.join(folder, "popsnap-share.json"), JSON.stringify({ token, txNo: txNo || undefined, mode: mode || "photo", social: Number.isInteger(social) ? social : null, studioCode: cfg().studioCode || "", url: shareUrlFor(token), createdAt: new Date().toISOString() }, null, 2));
   } catch { /* arsip tidak bisa ditulis: abaikan */ }
 }
 
@@ -335,4 +344,4 @@ function uploadArchive(outDir, date, id, redo = false) {
 }
 
 module.exports = {
-  newShareCode, writeShareFile, pushSocial, listArchive, uploadArchive, enabled, ready, shareUrlFor, enqueue, run, start, testConnection, status, nudge, deleteRemote };
+  newShareCode, txNoFor, writeShareFile, pushSocial, listArchive, uploadArchive, enabled, ready, shareUrlFor, enqueue, run, start, testConnection, status, nudge, deleteRemote };

@@ -53,13 +53,14 @@ export default function LiveView({ camera, aspect, crop = true, fill = false, on
   };
   // Area potong: persegi panjang berrasio `guide`, di tengah gambar kamera yang tampil utuh (sama dengan pemotongan saat foto dimasukkan ke slot)
   const A = dims.w && dims.h ? (sideways ? dims.h / dims.w : dims.w / dims.h) : 0;
-  // Mode "penuhi area layar" (crop=true tetapi kotak BUKAN rasio slot): kamera sudah dipotong ke kotak, tapi hasil akhir tetap memotong sesuai slot,
-  // jadi garis area slot juga ditampilkan di dalam kotak. Mode "ikut slot" (kotak = rasio slot) tidak butuh garis.
-  const boxAR = crop && aspect > 0 ? aspect : 0;
-  const guideInBox = !!guide && crop && boxAR > 0 && Math.abs(boxAR / guide - 1) > 0.03;
-  const showGuide = !!guide && ((!crop && A > 0) || guideInBox) && cfg.liveView?.guide !== false;
-  const Aeff = crop ? boxAR : A; // rasio area gambar yang tampil: gambar kamera utuh (contain) atau kotak (cover)
-  const vwc = crop ? "100cqw" : `min(100cqw, calc(100cqh * ${A}))`; // lebar area gambar kamera yang tampil
+  // Garis area slot di SEMUA bentuk bingkai. Area tercetak = persegi panjang berrasio `guide` di tengah gambar kamera ASLI (potongan "cover" saat foto masuk slot),
+  // bukan di tengah kotak: saat kotak memotong kamera (mode "penuhi layar"), gambar aslinya lebih lebar dari kotak, jadi area tercetak bisa lebih luas dari yang tampil.
+  // Bingkai berbentuk persis slot (crop + rasio kotak = rasio slot): seluruh kotak = yang tercetak, tanpa garis.
+  const boxIsSlot = crop && !!guide && aspect > 0 && Math.abs(aspect / guide - 1) < 0.03;
+  const showGuide = !!guide && A > 0 && !boxIsSlot && cfg.liveView?.guide !== false;
+  const Aeff = A; // rasio gambar kamera asli (setelah rotasi)
+  // Lebar gambar kamera asli di kotak: utuh (contain) = min(...), dipotong kotak (cover) = max(...)
+  const vwc = crop ? `max(100cqw, calc(100cqh * ${A}))` : `min(100cqw, calc(100cqh * ${A}))`;
   return (
     <div className={`relative overflow-hidden bg-black max-h-full max-w-full ${className}`} style={boxStyle}>
       {useFilter && (

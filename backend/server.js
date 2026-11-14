@@ -1705,7 +1705,7 @@ app.post("/api/session/finish", async (req, res) => {
   // ---- Arsip PERMANEN: output/<tanggal>/<id>/final.png + raw/shot-N.jpg (SEMUA foto yang dijepret) ----
   try {
     const sessionFolder = archiveFolder(id);
-    gallery.writeShareFile(sessionFolder, realToken, "photo");
+    gallery.writeShareFile(sessionFolder, realToken, "photo", undefined, gallery.txNoFor(id));
     if (finalBuf) fs.writeFileSync(path.join(sessionFolder, "final.png"), finalBuf);
     if (finalBuf) exportCopy("prints", `${stamp}_${id}.png`, finalBuf);
 
@@ -1779,7 +1779,7 @@ app.post("/api/session/media", express.raw({ type: () => true, limit: "300mb" })
 
   try {
     const stamp = localDate();
-    if (mediaShareToken) gallery.writeShareFile(archiveFolder(id), mediaShareToken, kind);
+    if (mediaShareToken) gallery.writeShareFile(archiveFolder(id), mediaShareToken, kind, undefined, gallery.txNoFor(id));
     fs.writeFileSync(path.join(archiveFolder(id), kind === "video" ? `video.${ext}` : kind === "boomerang" ? "boomerang.gif" : "session.gif"), body);
     exportCopy(spec.exportKind, `${stamp}_${id}${kind === "boomerang" ? "_boomerang" : ""}.${ext}`, body);
   } catch (err) {
@@ -1919,7 +1919,8 @@ app.post("/api/payment/qris", async (req, res) => {
         cloud.setStatus(orderId, "failed");
         if (/duplicate|already|sudah|4040/i.test(err.message) && attempt < 3) continue;
         console.error("[doku] Gagal membuat QRIS:", err.message);
-        return res.status(500).json({ error: "Gagal membuat QRIS DOKU. Cek koneksi internet / pengaturan DOKU di Admin > Pembayaran." });
+        const why = err.name === "AbortError" ? "DOKU tidak menjawab (timeout / internet putus)" : String(err.message || err).replace(/^DOKU gagal membuat QRIS:\s*/, "").slice(0, 200);
+        return res.status(500).json({ error: `Gagal membuat QRIS DOKU: ${why}` });
       }
     }
   }
