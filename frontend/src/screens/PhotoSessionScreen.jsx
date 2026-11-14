@@ -274,7 +274,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           cursor: canTap && waiting ? "pointer" : "default",
         }}
       >
-        <LiveView camera={camera} aspect={boxAspect} crop={fitTpl || fillArea} fill onAspect={setCamAspect} mirror={mirror} guide={firstSlot && !fitTpl && !fillArea ? aspect : null} />
+        <LiveView camera={camera} aspect={boxAspect} crop={fitTpl || fillArea} fill onAspect={setCamAspect} mirror={mirror} guide={firstSlot && !fitTpl ? aspect : null} />
         {camera.error && <p className="absolute inset-0 flex items-center justify-center text-center px-6 font-bold" style={{ color: "#FFD9DE", fontSize: U(30) }}>{camera.error}</p>}
 
         {seq.phase === "countdown" && <CountdownOverlay count={seq.count} label={`Foto ${Math.min(nextSlot + 1, totalShots)} dari ${totalShots}`} />}

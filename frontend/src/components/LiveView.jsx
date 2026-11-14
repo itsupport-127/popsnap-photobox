@@ -53,8 +53,13 @@ export default function LiveView({ camera, aspect, crop = true, fill = false, on
   };
   // Area potong: persegi panjang berrasio `guide`, di tengah gambar kamera yang tampil utuh (sama dengan pemotongan saat foto dimasukkan ke slot)
   const A = dims.w && dims.h ? (sideways ? dims.h / dims.w : dims.w / dims.h) : 0;
-  const showGuide = !!guide && !crop && A > 0 && cfg.liveView?.guide !== false;
-  const vwc = `min(100cqw, calc(100cqh * ${A}))`; // lebar gambar kamera yang tampil
+  // Mode "penuhi area layar" (crop=true tetapi kotak BUKAN rasio slot): kamera sudah dipotong ke kotak, tapi hasil akhir tetap memotong sesuai slot,
+  // jadi garis area slot juga ditampilkan di dalam kotak. Mode "ikut slot" (kotak = rasio slot) tidak butuh garis.
+  const boxAR = crop && aspect > 0 ? aspect : 0;
+  const guideInBox = !!guide && crop && boxAR > 0 && Math.abs(boxAR / guide - 1) > 0.03;
+  const showGuide = !!guide && ((!crop && A > 0) || guideInBox) && cfg.liveView?.guide !== false;
+  const Aeff = crop ? boxAR : A; // rasio area gambar yang tampil: gambar kamera utuh (contain) atau kotak (cover)
+  const vwc = crop ? "100cqw" : `min(100cqw, calc(100cqh * ${A}))`; // lebar area gambar kamera yang tampil
   return (
     <div className={`relative overflow-hidden bg-black max-h-full max-w-full ${className}`} style={boxStyle}>
       {useFilter && (
@@ -88,7 +93,7 @@ export default function LiveView({ camera, aspect, crop = true, fill = false, on
       {showGuide && (() => {
         // Bingkai area template. Dulu pakai box-shadow raksasa (200vmax) yang dilukis ulang di setiap frame live view -> patah-patah.
         // Sekarang: lapisan gelap berlubang (clip-path) yang digambar SEKALI sebagai layer sendiri.
-        const gw = `min(${vwc}, calc(${vwc} / ${A} * ${guide}))`;
+        const gw = `min(${vwc}, calc(${vwc} / ${Aeff} * ${guide}))`;
         const gh = `calc(${gw} / ${guide})`;
         const x1 = `calc(50% - ${gw} / 2)`, x2 = `calc(50% + ${gw} / 2)`, y1 = `calc(50% - ${gh} / 2)`, y2 = `calc(50% + ${gh} / 2)`;
         return (
