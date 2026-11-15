@@ -219,7 +219,7 @@ export default function SettingsCamera({ s, set, only }) {
       )}
 
       {vis("LIVE VIEW") && (
-      <Card title="LIVE VIEW" hint="Tampilan kamera saat hitung mundur.">
+      <Card title="LIVE VIEW" hint="Tampilan kamera saat hitung mundur. Auto cahaya LIVE VIEW (Samakan dengan foto, Auto Exposure) diatur di sini; auto cahaya FOTO ada di kartu AUTO CAHAYA FOTO di bawah.">
         <Row label="Enable"><Check checked={lv.enabled} onChange={(v) => set(["camera", "liveView", "enabled"], v)} label="Tampilkan video pratinjau saat hitung mundur" /></Row>
         <Row label="Mirror Image"><Check checked={lv.mirror} onChange={(v) => set(["camera", "liveView", "mirror"], v)} label="Pilihan awal: Mirror (seperti cermin). Tamu bisa memilih Mirror / No Mirror sendiri saat sesi foto & di editor" /></Row>
         <Row label="Bentuk bingkai" hint="Ikut kamera: bingkai mengikuti Orientasi & Rotasi kamera, seluruh pandangan kamera tampil, bagian di luar slot digelapkan (lihat Area template). Ikut slot template: bingkai berbentuk slot foto, yang terlihat = yang tercetak (sisi yang tidak masuk slot terpotong). Penuhi area layar: kotak memakai seluruh ruang yang tersedia di layar portrait/persegi (kamera landscape dipotong di kiri-kanan; tanpa penanda area template).">
@@ -260,6 +260,16 @@ export default function SettingsCamera({ s, set, only }) {
             </div>
           )}
         </Row>
+      </Card>
+      )}
+
+      {vis("AUTO CAHAYA FOTO") && (
+      <Card title="AUTO CAHAYA FOTO" hint="Penyesuaian terang/gelap untuk HASIL FOTO. Terpisah dari live view: auto cahaya live view diatur di kartu LIVE VIEW di atas (Samakan dengan foto, Auto Exposure).">
+        <Row label="Auto cahaya foto"><Check checked={c.photoLight?.auto === true} onChange={(v) => set(["camera", "photoLight", "auto"], v)} label="Otomatis terangkan / gelapkan foto hasil jepret ke target" hint="Setelah jepret, booth mengukur kecerahan bagian tengah foto (tempat wajah) lalu menggeser kecerahannya ke target. Hanya membantu selisih kecil (mis. siang vs malam); foto yang sangat gelap atau terbakar tidak bisa dipulihkan. Berlaku untuk foto yang tersimpan, layar cek foto, hasil cetak, dan Live / GIF yang dibuat dari foto itu." /></Row>
+        {c.photoLight?.auto === true && (<>
+          <Row label="Target terang"><div className="flex items-center gap-3 flex-wrap"><div className="w-28"><NumInput value={c.photoLight?.target ?? 120} min={60} onCommit={(v) => set(["camera", "photoLight", "target"], Math.round(Math.min(200, Math.max(60, v))))} /></div><span className="text-[12px] text-[#55606E]">0-255 (bawaan 120). Naikkan bila hasil umumnya masih gelap, turunkan bila terlalu terang.</span></div></Row>
+          <Row label="Maksimal koreksi"><div className="flex items-center gap-3 flex-wrap"><div className="w-28"><NumInput value={c.photoLight?.maxPct ?? 40} min={0} onCommit={(v) => set(["camera", "photoLight", "maxPct"], Math.round(Math.min(100, Math.max(0, v))))} /></div><span className="text-[12px] text-[#55606E]">% (bawaan 40). Batas supaya warna kulit tidak pucat / gosong. 0 = tidak ada koreksi.</span></div></Row>
+        </>)}
       </Card>)}
     </>
   );

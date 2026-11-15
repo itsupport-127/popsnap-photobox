@@ -32,6 +32,7 @@ import ShotThumb, { THUMB_MODES, shapeStyle } from "../components/ShotThumb";
 import useClipRecorder from "../hooks/useClipRecorder";
 import { clearClips } from "../utils/clipStore";
 import useShape from "../hooks/useShape";
+import { autoLightPhoto } from "../utils/photoLight";
 
 
 // Satuan desain: 1 = 1px pada kanvas 1728x1117 (lihat .strip-screen di index.css)
@@ -105,7 +106,9 @@ export default function PhotoSessionScreen({ session, dispatch }) {
     pauseSeconds: cap.pauseSeconds ?? 3,
     capture: async () => {
       recorder.mark(shotIndexNow.current);
-      const photo = await camera.capture();
+      let photo = await camera.capture();
+      // Auto cahaya FOTO (pengaturan sendiri, terpisah dari live view): geser kecerahan foto ke target
+      if (photo && s.camera?.photoLight?.auto) photo = (await autoLightPhoto(photo, s.camera.photoLight)).photo;
       // live view belajar "seterang apa hasil foto" (dipakai kecerahan otomatis, lihat useCamera)
       if (photo) lumaOfImage(photo).then((l) => camera.learnPhotoLuma(l)).catch(() => {});
       return photo;

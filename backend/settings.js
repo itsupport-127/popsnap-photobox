@@ -65,6 +65,7 @@ const DEFAULTS = {
     orientation: "auto", // auto = ikut gambar kamera | landscape | portrait (kamera dipasang tegak: gambar otomatis diputar 90°)
     liveSource: "camera", // mode DSLR: sumber tampilan live view. camera = live view dari kamera (USB, lewat program perantara) | webcam = webcam / capture card HDMI (lebih cepat, tanpa delay); foto tetap dari DSLR
     exposure: { split: false, live: {}, photo: {} }, // Setelan Kamera (Canon/Nikon langsung): split = ISO / shutter / aperture / WB Live View dan Foto dipisah. Nilai = kode pilihan kamera (angka)
+    photoLight: { auto: false, target: 120, maxPct: 40 }, // Auto cahaya FOTO (terpisah dari live view): geser kecerahan hasil jepret ke target (0-255), koreksi maks %
     liveView: { clipRotation: 0, enabled: true, mirror: true, rotation: 0, displayOnStart: false, guide: true, fitTemplate: false, frameMode: "camera", thumbMode: "ratio", brightness: 100, autoBright: true, canonAutoExposure: false, canonBoost: 3, asIs: false, contrast: 100, saturation: 100, warmth: 0, filterId: "" },
   },
 
@@ -334,6 +335,7 @@ function update(patch) {
       mode: pick(c.mode, ["webcam", "dslr"], cc.mode),
       orientation: pick(c.orientation, ["auto", "landscape", "portrait"], cc.orientation),
       autoTrigger: bool(c.autoTrigger, cc.autoTrigger),
+      photoLight: (() => { const o = obj(c.photoLight), d = cc.photoLight ?? { auto: false, target: 120, maxPct: 40 }; return { auto: bool(o.auto, d.auto), target: num(o.target, 60, 200, d.target), maxPct: num(o.maxPct, 0, 100, d.maxPct) }; })(),
       liveSource: pick(c.liveSource, ["camera", "webcam"], cc.liveSource ?? "camera"),
       exposure: (() => {
         const e = obj(c.exposure), ce = cc.exposure ?? { split: false, live: {}, photo: {} };
