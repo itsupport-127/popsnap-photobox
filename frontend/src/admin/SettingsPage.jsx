@@ -25,7 +25,7 @@ const GROUPS = [
   { id: "sesi", label: "Sesi Foto", icon: "camera", desc: "Jumlah foto, retake, hitung mundur, mode ketuk, dan tampilan layar jepret.",
     items: [["general", ["ATURAN SESI FOTO"]], ["display", ["CAPTURE SCREEN"]]] },
   { id: "kamera", label: "Kamera & Live View", icon: "eye", desc: "Sumber kamera, DSLR, live view, dan profil warna.",
-    items: [["camera", ["CAMERA", "KAMERA DSLR / MIRRORLESS", "LIVE VIEW"]]] },
+    items: [["camera", ["CAMERA", "KAMERA DSLR / MIRRORLESS", "LIVE VIEW", "AUTO CAHAYA FOTO", "PROFIL KAMERA"]]] },
   { id: "hasil", label: "Hasil Akhir", icon: "star", desc: "Layar akhir (QR, ucapan, offline) dan tombol hasil. Filter foto ada di menu Filter.",
     items: [["display", ["SHARING SCREEN"]], ["media", ["HASIL AKHIR (FOTO / LIVE / GIF)"]]] },
   { id: "media", label: "GIF, Live & Video", icon: "history", desc: "Pengaturan GIF, Live (video momen), boomerang, dan video.",

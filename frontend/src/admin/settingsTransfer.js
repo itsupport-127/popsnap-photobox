@@ -14,15 +14,23 @@ export function buildExport(s) {
   return { format: FORMAT, version: 1, exportedAt: new Date().toISOString(), settings: out };
 }
 
+/** Ekspor HANYA pengaturan kamera (live view, auto cahaya, ISO/shutter live & foto, dll). Perangkat PC ini (webcam / DSLR) tidak ikut. Format sama dengan ekspor penuh. */
+export function buildCameraExport(s) {
+  const full = buildExport({ camera: s?.camera });
+  return { ...full, scope: "camera" };
+}
+
 /** Gabungkan hasil impor ke pengaturan saat ini (hanya kunci yang sudah ada; yang khusus-PC tetap milik PC ini). Mengembalikan { next, changed }. */
 export function applyImport(current, parsed) {
   if (!parsed || parsed.format !== FORMAT || typeof parsed.settings !== "object") throw new Error("Berkas ini bukan ekspor pengaturan POPSNAP.");
   const next = clone(current);
   let changed = 0;
-  const merge = (dst, src) => {
+  const merge = (dst, src, parent = "") => {
     for (const [k, v] of Object.entries(src)) {
       if (!(k in dst)) continue; // kunci asing diabaikan (server tetap memvalidasi saat Simpan)
-      if (v && typeof v === "object" && !Array.isArray(v) && dst[k] && typeof dst[k] === "object" && !Array.isArray(dst[k])) merge(dst[k], v);
+      // Profil ISO / shutter / aperture / WB (camera.exposure.live / .photo) bisa kosong di PC ini: ganti utuh, bukan digabung per kunci
+      if (parent === "exposure" && (k === "live" || k === "photo") && v && typeof v === "object") { if (JSON.stringify(dst[k]) !== JSON.stringify(v)) { dst[k] = v; changed++; } continue; }
+      if (v && typeof v === "object" && !Array.isArray(v) && dst[k] && typeof dst[k] === "object" && !Array.isArray(dst[k])) merge(dst[k], v, k);
       else if (JSON.stringify(dst[k]) !== JSON.stringify(v)) { dst[k] = v; changed++; }
     }
   };

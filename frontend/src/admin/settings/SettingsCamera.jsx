@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { NumInput } from "../editorKit";
 import { Btn, Card, Notice } from "../ui";
 import { Check, Range, Row, Select } from "./controls";
+import { buildCameraExport, applyImport, downloadJson } from "../settingsTransfer";
 import { DEFAULT_FILTERS } from "../../utils/filters";
 import { effectiveRotation } from "../../utils/cameraRotation";
 import LiveView from "../../components/LiveView";
@@ -16,8 +17,24 @@ export default function SettingsCamera({ s, set, only }) {
   const [devices, setDevices] = useState({ video: [], audio: [] });
   const [msg, setMsg] = useState(null);
   const [previewing, setPreviewing] = useState(false);
+  const [profMsg, setProfMsg] = useState(null);
+  const profRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+
+  function exportCamera() { downloadJson(buildCameraExport(s), `popsnap-kamera-${new Date().toISOString().slice(0, 10)}.json`); setProfMsg({ ok: "Berkas profil kamera diunduh." }); }
+  async function importCamera(e) {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      const parsed = JSON.parse(await f.text());
+      if (!parsed?.settings?.camera) throw new Error("Berkas ini tidak berisi pengaturan kamera.");
+      const { next, changed } = applyImport({ camera: s.camera }, { ...parsed, settings: { camera: parsed.settings.camera } });
+      if (!changed) { setProfMsg({ err: "Pengaturan kamera di berkas ini sama dengan yang sekarang." }); return; }
+      set(["camera"], next.camera);
+      setProfMsg({ ok: `${changed} pengaturan kamera dimuat. Periksa, lalu tekan Save untuk menerapkan (Cancel untuk membatalkan). Hanya pengaturan kamera yang berubah; webcam / kamera DSLR PC ini tetap.` });
+    } catch (err) { setProfMsg({ err: err.message || "Berkas tidak bisa dibaca." }); }
+  }
 
   async function detect() {
     setMsg(null);
@@ -259,6 +276,20 @@ export default function SettingsCamera({ s, set, only }) {
               <div className="mt-2 flex items-center gap-3"><Btn onClick={stopPreview}>Matikan pratinjau</Btn><span className="text-[12px] text-[#55606E]">Putar {pvRot}°{lv.mirror ? " · mirror" : ""}{templateFrame ? " · bingkai ikut slot (contoh 3:4)" : " · kotak putih = area template (contoh 3:4)"}</span></div>
             </div>
           )}
+        </Row>
+      </Card>
+      )}
+
+      {vis("PROFIL KAMERA") && (
+      <Card title="PROFIL KAMERA" hint="Salin HANYA pengaturan kamera ke PC booth lain (atau simpan cadangan): live view, auto cahaya live & foto, ISO / shutter / aperture / WB, orientasi, dll. Pengaturan lain (pembayaran, printer, template) dan pilihan webcam / DSLR PC ini tidak ikut.">
+        <Row label="Ekspor / Impor">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Btn onClick={exportCamera}>Ekspor pengaturan kamera</Btn>
+            <Btn onClick={() => profRef.current?.click()}>Impor pengaturan kamera</Btn>
+            <input ref={profRef} type="file" accept="application/json,.json" onChange={importCamera} className="hidden" aria-label="Berkas pengaturan kamera" />
+          </div>
+          {profMsg?.ok && <div className="mt-2"><Notice tone="ok">{profMsg.ok}</Notice></div>}
+          {profMsg?.err && <div className="mt-2"><Notice tone="error">{profMsg.err}</Notice></div>}
         </Row>
       </Card>
       )}
