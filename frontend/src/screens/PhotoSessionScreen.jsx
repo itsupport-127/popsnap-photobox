@@ -325,9 +325,13 @@ export default function PhotoSessionScreen({ session, dispatch }) {
               <div className="sess-review" style={{ "--cols": rvCols, gap: `${U(34)} ${U(30)}`, padding: `${U(60)} ${U(60)}` }}>
                 {Array.from({ length: totalShots }, (_, p) => (
                   <div key={p} className="sess-review__item" style={{ width: U(rvTile.w) }}>
-                    <div className={`sess-review__shot ${shaped ? "is-shaped" : ""}`} style={{ width: U(rvTileFor(p).w), height: U(rvTileFor(p).h), margin: "0 auto" }}>
+                    <div className={`sess-review__shot ${shaped ? "is-shaped" : ""}`} style={{ width: U(rvTileFor(p).w), height: U(rvTileFor(p).h), margin: "0 auto", cursor: session.shots[p] ? "zoom-in" : "default" }}
+                      role="button" tabIndex={0} aria-label={`Foto ${p + 1}, ketuk untuk melihat besar`}
+                      onClick={() => { if (session.shots[p]) setPreviewIdx(p); }}
+                      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && session.shots[p]) { e.preventDefault(); setPreviewIdx(p); } }}>
                       <ShotThumb src={session.shots[p]} mode={thumbMode} kind={kindOf(p)} slotAR={slotARat(p)} boxAR={rvTileFor(p).w / rvTileFor(p).h} mirror={mirror} U={U} edge={5} onPhotoAR={setShotAR} alt={`foto ${p + 1}`} />
                       <span className="sess-tile__num" style={{ fontSize: U(22), width: U(38), height: U(38), zIndex: 2 }}>{p + 1}</span>
+                      <span aria-hidden="true" style={{ position: "absolute", right: U(8), bottom: U(8), zIndex: 2, width: U(38), height: U(38), borderRadius: "50%", background: "rgba(0,0,0,.55)", color: "#fff", fontSize: U(22), display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>⤢</span>
                     </div>
                     <button onClick={() => handleRetake(p)} className="sess-review__btn" style={{ height: U(44), fontSize: U(22) }}>↺ Retake</button>
                   </div>
@@ -388,9 +392,9 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           <div className="modal-card p-5 sm:p-7 max-w-[90vw] flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
             <p className="display-h3">Foto {previewIdx + 1} dari {totalShots}</p>
             {thumbMode === "ratio" || thumbMode === "whole" ? (
-              <img src={slotShot(previewIdx)} alt={`foto ${previewIdx + 1}`} className="max-h-[58vh] max-w-[80vw] object-contain rounded-xl border-2 border-black/20" style={mirrorStyle} />
+              <img src={slotShot(previewIdx)} alt={`foto ${previewIdx + 1}`} className="max-h-[68vh] max-w-[86vw] object-contain rounded-xl border-2 border-black/20" style={mirrorStyle} />
             ) : (
-              <div style={{ position: "relative", aspectRatio: String(arFor(previewIdx)), height: `min(58vh, calc(80vw / ${arFor(previewIdx)}))` }}>
+              <div style={{ position: "relative", aspectRatio: String(arFor(previewIdx)), height: `min(68vh, calc(86vw / ${arFor(previewIdx)}))` }}>
                 <ShotThumb src={slotShot(previewIdx)} mode={thumbMode} kind={kindOf(previewIdx)} slotAR={slotARat(previewIdx)} boxAR={arFor(previewIdx)} mirror={mirror} U={(n) => `${n * 2}px`} edge={3} onPhotoAR={setShotAR} alt={`foto ${previewIdx + 1}`} />
               </div>
             )}

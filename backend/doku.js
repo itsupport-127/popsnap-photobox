@@ -41,7 +41,7 @@ async function http(path, { method = "POST", headers = {}, body } = {}) {
     const res = await fetch(host() + path, { method, headers, body, signal: ctrl.signal });
     const text = await res.text();
     let json = {}; try { json = JSON.parse(text); } catch { /* bukan JSON */ }
-    return { status: res.status, json, text };
+    return { status: res.status, json, text, via: [res.headers.get("content-type"), res.headers.get("server"), res.headers.get("via")].filter(Boolean).join(" | ") };
   } finally { clearTimeout(t); }
 }
 
@@ -71,16 +71,30 @@ async function call(path, payload) {
 /** Buat QRIS dinamis. Mengembalikan { qrContent, referenceNo }. Melempar Error bila ditolak. */
 async function generate({ orderNo, amount, minutes = 15 }) {
   const d = cfg();
-  const r = await call(PATH.generate, {
+  const body = {
     partnerReferenceNo: orderNo,
     amount: { value: `${Math.round(amount)}.00`, currency: "IDR" },
     merchantId: d.merchantId,
     terminalId: d.terminalId,
     validityPeriod: isoLocal(new Date(Date.now() + minutes * 60000)),
     additionalInfo: { postalCode: d.postalCode || "12345", feeType: "1" },
-  });
+  };
+  let r = await call(PATH.generate, body);
+  // HTTP 200 tapi isi KOSONG bukan jawaban DOKU yang normal (DOKU selalu mengirim JSON). Biasanya koneksi yang dipotong / disaring di jaringan
+  // studio (router, DNS, antivirus, proxy). Coba sekali lagi dengan nomor referensi baru; kalau tetap kosong, beri pesan yang jelas.
+  if (r.status === 200 && !String(r.text || "").trim()) {
+    console.error(`[doku] generate: HTTP 200 isi kosong dari ${host()} (header: ${r.via || "-"}). Mencoba sekali lagi...`);
+    await new Promise((ok) => setTimeout(ok, 700));
+    r = await call(PATH.generate, { ...body, partnerReferenceNo: orderNo });
+  }
   const j = r.json;
-  if (!j.qrContent) throw new Error(`DOKU gagal membuat QRIS: ${j.responseMessage || r.text.slice(0, 160) || "HTTP " + r.status} (${j.responseCode || r.status})`);
+  if (!j.qrContent) {
+    if (r.status === 200 && !String(r.text || "").trim()) {
+      console.error(`[doku] generate: tetap kosong dari ${host()} (header: ${r.via || "-"})`);
+      throw new Error(`DOKU tidak mengirim isi jawaban (HTTP 200 kosong) dari ${host().replace("https://", "")}; kemungkinan koneksi ke DOKU disaring jaringan studio ini (router / DNS / antivirus)`);
+    }
+    throw new Error(`DOKU gagal membuat QRIS: ${j.responseMessage || r.text.slice(0, 160) || "HTTP " + r.status} (${j.responseCode || r.status})${r.via ? ` [${r.via}]` : ""}`);
+  }
   return { qrContent: j.qrContent, referenceNo: j.referenceNo || null };
 }
 
