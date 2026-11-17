@@ -1669,7 +1669,7 @@ app.post("/api/session/shots", express.json({ limit: "100mb" }), (req, res) => {
 });
 
 app.post("/api/session/finish", async (req, res) => {
-  const { sessionId, templateId, finalImage, shots, paymentMethod, socialConsent } = req.body ?? {};
+  const { sessionId, templateId, finalImage, finalJpeg, shots, paymentMethod, socialConsent } = req.body ?? {};
   // sessionId datang dari browser -> JANGAN dipakai mentah-mentah sebagai nama file/folder (bisa "../../x").
   const id = SAFE_ID.test(String(sessionId ?? "")) ? String(sessionId) : nanoid();
   const key = nanoid(24);
@@ -1707,7 +1707,15 @@ app.post("/api/session/finish", async (req, res) => {
     const sessionFolder = archiveFolder(id);
     gallery.writeShareFile(sessionFolder, realToken, "photo", undefined, gallery.txNoFor(id));
     if (finalBuf) fs.writeFileSync(path.join(sessionFolder, "final.png"), finalBuf);
-    if (finalBuf) exportCopy("prints", `${stamp}_${id}.png`, finalBuf);
+    if (finalBuf) {
+      // Salinan "Prints": JPEG (seperti dslrBooth) supaya Epson Photo+ menampilkan Color Adjust; arsip & galeri tetap final.png
+      const mj0 = finalJpeg ? DATA_IMG.exec(String(finalJpeg)) : null;
+      const jpegBuf = mj0 && mj0[1] === "jpeg" ? Buffer.from(mj0[2], "base64") : null;
+      // Folder bawaan: print.jpg (JPEG) di samping final.png. Nama "print" sengaja bukan "final", jadi tidak ikut terunggah ke galeri (gallerySync hanya mengambil final / boomerang / session / video / live / gifplain / raw / clips)
+      if (jpegBuf) { try { fs.writeFileSync(path.join(sessionFolder, "print.jpg"), jpegBuf); } catch { /* arsip utama (final.png) tetap aman */ } }
+      if (jpegBuf && settingsStore.load().general.export.printsFormat === "jpeg") exportCopy("prints", `${stamp}_${id}.jpg`, jpegBuf);
+      else exportCopy("prints", `${stamp}_${id}.png`, finalBuf);
+    }
 
     saveRawShots(id, stamp, shots, 0);
   } catch (err) {

@@ -32,7 +32,7 @@ const DEFAULTS = {
     },
     // Ekspor real-time: salin hasil ke folder lain (flashdisk / folder cloud) begitu sesi selesai
     dataDir: "", // folder arsip permanen (kosong = bawaan / OUTPUT_DIR di .env)
-    export: { enabled: false, dir: "", prints: true, originals: true, gifs: true, videos: true },
+    export: { enabled: false, dir: "", prints: true, printsFormat: "jpeg", originals: true, gifs: true, videos: true },
   },
 
   // ---- CETAK (printer utama / kedua; printer sharing Windows maupun langsung) ----
@@ -298,7 +298,7 @@ function update(patch) {
     ng.export = {
       enabled: bool(ex.enabled, cg.export.enabled),
       dir: ex.dir === undefined ? cg.export.dir : str(ex.dir, 300, ""),
-      prints: bool(ex.prints, cg.export.prints), originals: bool(ex.originals, cg.export.originals),
+      prints: bool(ex.prints, cg.export.prints), printsFormat: ex.printsFormat === "png" || ex.printsFormat === "jpeg" ? ex.printsFormat : cg.export.printsFormat, originals: bool(ex.originals, cg.export.originals),
       gifs: bool(ex.gifs, cg.export.gifs), videos: bool(ex.videos, cg.export.videos),
     };
     // PIN: hanya angka 4-8 digit, disimpan ter-hash (tidak pernah dikirim balik ke browser)

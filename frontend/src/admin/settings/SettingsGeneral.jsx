@@ -111,6 +111,10 @@ export default function SettingsGeneral({ s, set, pin, setPin, outputDir, only }
           <div className={`flex gap-5 pt-1 ${ex.enabled ? "" : "opacity-40 pointer-events-none"}`}>
             {[["prints", "Prints"], ["originals", "Originals"], ["gifs", "GIFs"], ["videos", "Videos"]].map(([k, l]) => <Check key={k} checked={ex[k]} onChange={(v) => set(["general", "export", k], v)} label={l} />)}
           </div>
+          <div className={`flex items-center gap-2 pt-2 ${ex.enabled && ex.prints ? "" : "opacity-40 pointer-events-none"}`}>
+            <span className="text-[12px] text-[#55606E]">Format file Prints</span>
+            <Select value={ex.printsFormat ?? "jpeg"} onChange={(v) => set(["general", "export", "printsFormat"], v)} options={[["jpeg", "JPEG (seperti dslrBooth, Epson Photo+ punya Color Adjust)"], ["png", "PNG"]]} className="max-w-md" />
+          </div>
           <div className={`flex gap-2 mt-2 ${ex.enabled ? "" : "opacity-40 pointer-events-none"}`}>
             <input className={inputCls} placeholder="Contoh: D:\HASIL  atau  /home/user/hasil" value={ex.dir} onChange={(e) => { set(["general", "export", "dir"], e.target.value); setExportTest(null); }} />
             <Btn onClick={() => browse("Pilih folder ekspor", ex.dir || g.dataDir || outputDir || "", (d) => { set(["general", "export", "dir"], d); setExportTest(null); })}>Browse</Btn>

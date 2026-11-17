@@ -20,12 +20,26 @@ async function flipShot(src) {
   } catch { return src; }
 }
 
+/** Hasil akhir (PNG) -> JPEG berkualitas tinggi (latar putih). Dipakai untuk salinan "Prints" di folder ekspor: program cetak seperti Epson Photo+ hanya menampilkan Color Adjust / Auto Correction untuk JPEG, tidak untuk PNG (seperti file dari dslrBooth). Gagal -> undefined. */
+async function finalToJpeg(src) {
+  try {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = src; });
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0);
+    return c.toDataURL("image/jpeg", 0.97);
+  } catch { return undefined; }
+}
+
 /** Kirim hasil sesi FOTO (gambar akhir + semua foto mentah). Mengembalikan { downloadUrl, sessionId, uploadKey }. */
 export async function uploadSession(session) {
   // Foto mentah ikut pilihan tamu: kalau memilih Mirror, file mentah yang diunduh juga terbalik seperti yang mereka lihat
   const shots = session.editorState?.mirror ? await Promise.all(session.shots.map(flipShot)) : session.shots;
   // 1) Hasil akhir SAJA (kecil) -> sesi, folder hasil dan QR pasti jadi. 2) Foto mentah menyusul bertahap (lihat /api/session/shots),
   //    sehingga ukuran total tidak pernah membuat satu permintaan ditolak.
+  const finalJpeg = session.finalImage ? await finalToJpeg(session.finalImage) : undefined;
   let res;
   try {
     res = await fetch(`${API_BASE}/api/session/finish`, {
@@ -36,6 +50,7 @@ export async function uploadSession(session) {
         templateId: session.selectedTemplate?.id,
         paymentMethod: session.paymentMethod,
         finalImage: session.finalImage,
+        finalJpeg,
         socialConsent: Number.isInteger(session.socialConsent) ? session.socialConsent : undefined, // izin foto (layar Izin Foto): 1 sosmed, 2 mading, 3 keduanya, 0 tidak
         shots: [],
       }),
