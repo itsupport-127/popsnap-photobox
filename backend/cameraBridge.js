@@ -247,13 +247,13 @@ function mount(app, { settingsStore }) {
       fpsN++; if (now - fpsT >= 1000) { fps = Math.round((fpsN * 1000) / (now - fpsT) * 10) / 10; fpsN = 0; fpsT = now; }
       res.write(Buffer.concat([Buffer.from(`--popsnapframe\r\nContent-Type: image/jpeg\r\nContent-Length: ${buf.length}\r\n\r\n`), buf, TAIL]));
     };
-    let lastStart = 0, lastProfile = 0;
+    let lastStart = 0, lastProfile = 0, viewBump = 0; // viewBump: kapan terakhir kali booth sendiri sibuk mengatur kamera / menyalakan live view (bukan kamera macet)
     while (alive) {
       try {
         const now = Date.now();
         if (b) {
-          if (b.profile === "photo" && capturing === 0 && now - lastProfile > 1500) { lastProfile = now; await applyExposure(b, "live"); if (!alive) break; }
-          if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; await applyExposure(b, "live"); if (!alive) break; b.send("LIVEVIEW_START"); }
+          if (b.profile === "photo" && capturing === 0 && now - lastProfile > 1500) { lastProfile = now; await applyExposure(b, "live"); viewBump = Date.now(); if (!alive) break; }
+          if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; await applyExposure(b, "live"); if (!alive) break; b.send("LIVEVIEW_START"); viewBump = Date.now(); }
           const f = b.readFrameIfNew();
           if (f) {
             put(f);
@@ -266,8 +266,10 @@ function mount(app, { settingsStore }) {
           if (!f) { if (typeof b.waitFrame === "function") await b.waitFrame(100); else await wait(6); }
           else await wait(0);
           // Pemantau macet (mis. Nikon menolak live view lagi setelah jepret, atau kabel/driver tersendat sesaat)
-          const ref = Math.max(b.lastFrameAt || 0, startedAt, captureEndedAt, lastRecover);
-          if (capturing === 0 && Date.now() - ref > STALL_MS && Date.now() - lastRecover > STALL_MS) {
+          // Waktu pengaturan profil (ISO / shutter / aperture, tiap properti bisa 0,5-1 dtk) dan LIVEVIEW_START tidak dihitung sebagai 'macet': dulu pemantau menghitungnya dan menyalakan ulang live view berulang-ulang (sampai 10x), layar tampak beku
+          const ref = Math.max(b.lastFrameAt || 0, startedAt, captureEndedAt, lastRecover, viewBump);
+          const stallMs = ref === viewBump ? STALL_MS + 3000 : STALL_MS; // baru saja LIVEVIEW_START: Canon butuh beberapa detik untuk mengirim frame pertama
+          if (capturing === 0 && Date.now() - ref > stallMs && Date.now() - lastRecover > STALL_MS) {
             lastRecover = Date.now(); recoveries++;
             log(`live view macet ${Math.round((Date.now() - ref) / 100) / 10} dtk tanpa frame -> hidupkan ulang (#${recoveries})`);
             b.send("LIVEVIEW_STOP"); await wait(500); if (!alive) break; b.send("LIVEVIEW_START");
