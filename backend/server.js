@@ -75,11 +75,10 @@ function isTestPayment() {
 // tidak langsung dianggap offline (harus gagal 2 kali beruntun) supaya tidak berkedip.
 const ONLINE_TARGETS = ["https://www.gstatic.com/generate_204", "https://cloudflare.com/cdn-cgi/trace", "https://api.midtrans.com", "https://api.doku.com", "https://www.google.com/generate_204", ...(process.env.DOKU_BASE_URL ? [process.env.DOKU_BASE_URL] : [])];
 let onlineCache = { at: 0, value: false, fails: 0, reason: "" };
-async function checkOnline() {
-  if (Date.now() - onlineCache.at < 10000) return onlineCache.value;
+async function runOnlineCheck() {
   let ok = false, reason = "";
   try {
-    await Promise.any(ONLINE_TARGETS.map((u) => fetch(u, { method: "GET", signal: AbortSignal.timeout(5000), redirect: "manual", cache: "no-store" })));
+    await Promise.any(ONLINE_TARGETS.map((u) => fetch(u, { method: "GET", signal: AbortSignal.timeout(3500), redirect: "manual", cache: "no-store" })));
     ok = true; // respons HTTP apa pun = internet nyambung
   } catch (err) {
     const e = err?.errors?.[0];
@@ -91,6 +90,23 @@ async function checkOnline() {
   if (!ok) console.log(`[online] semua alamat uji gagal (${fails}x): ${reason}`);
   return value;
 }
+// Hanya satu pengecekan berjalan sekaligus
+let onlineBusy = null;
+function refreshOnline() {
+  if (!onlineBusy) onlineBusy = runOnlineCheck().finally(() => { onlineBusy = null; });
+  return onlineBusy;
+}
+// Layar bayar dulu menunggu pengecekan ini sampai 5 detik ("Memeriksa metode pembayaran..." lama) tiap kali hasil lama kedaluwarsa.
+// Sekarang: hasil terakhir (maks 30 dtk) dipakai SEKETIKA, pengecekan baru jalan di belakang, dan juga rutin tiap 10 dtk
+// supaya hasilnya selalu segar. Hanya pengecekan PERTAMA setelah booth menyala yang perlu menunggu.
+async function checkOnline() {
+  const age = Date.now() - onlineCache.at;
+  if (onlineCache.at && age < 10000) return onlineCache.value;
+  if (onlineCache.at && age < 30000) { refreshOnline().catch(() => {}); return onlineCache.value; }
+  return refreshOnline();
+}
+refreshOnline().catch(() => {});
+setInterval(() => { refreshOnline().catch(() => {}); }, 10000).unref?.();
 
 // ---- Metode bayar yang BENAR-BENAR tampil di booth sekarang ----
 // Aturan emas: konsumen tidak boleh sampai buntu. Kalau QRIS tidak bisa jalan
