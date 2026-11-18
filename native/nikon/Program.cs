@@ -242,7 +242,7 @@ namespace PopsnapNikon
             Text("CAMINFO|{\"brand\":\"nikon\",\"mode\":" + mode + ",\"manual\":" + (mode == 3 ? "true" : "false") + "," + PropJson("iso") + "," + PropJson("av") + "," + PropJson("tv") + "," + PropJson("wb") + "}");
             if (reb && _lvWanted && _boostStops > 0) BoostApply();
         }
-        static void CamSet(string n, string v)
+        static void CamSet(string n, string v, bool quiet = false)
         {
             int idx;
             if (_device == null) { Text("CAMSET_FAILED|" + n + "|Kamera belum tersambung"); return; }
@@ -267,7 +267,7 @@ namespace PopsnapNikon
             catch (Exception ex) { why = ex.Message; }
             if (reb && _lvWanted && _boostStops > 0) BoostApply();
             if (ok) Text("CAMSET_OK|" + n); else Text("CAMSET_FAILED|" + n + "|" + why);
-            CamInfo();
+            if (!quiet) CamInfo(); // 'quiet' = pergantian profil otomatis: jangan baca ulang semua setelan (lalu lintas USB ramai bikin live view macet)
         }
 
         static void Send(char kind, byte[] data)
@@ -577,7 +577,7 @@ namespace PopsnapNikon
                     else if (line.StartsWith("CAM_SET "))
                     {
                         string[] cp = line.Substring(8).Trim().Split(new char[] { ' ' }, 2);
-                        if (cp.Length == 2) CamSet(cp[0], cp[1].Trim()); else Text("CAMSET_FAILED||Perintah tidak lengkap");
+                        if (cp.Length == 2) { string val = cp[1].Trim(); bool q = false; if (val.EndsWith(" quiet")) { q = true; val = val.Substring(0, val.Length - 6).Trim(); } CamSet(cp[0], val, q); } else Text("CAMSET_FAILED||Perintah tidak lengkap");
                     }
                     else if (line == "LIVEVIEW_START") StartLive();
                     else if (line == "LIVEVIEW_STOP") StopLive();

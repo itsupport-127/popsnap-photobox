@@ -83,7 +83,7 @@ function mount(app, { settingsStore }) {
         for (const prop of ["tv", "av", "iso", "wb"]) {
           const v = prof[prop];
           if (v == null || v === "" || b.expApplied[prop] === String(v)) continue;
-          const r = await b.camSet(c.model, prop, String(v));
+          const r = await b.camSet(c.model, prop, String(v), { quiet: true });
           if (r.ok) { b.expApplied[prop] = String(v); delete b.expErrors[`${which}.${prop}`]; }
           else { b.expErrors[`${which}.${prop}`] = r.error || "ditolak kamera"; log(`profil ${which}: ${prop} ditolak:`, r.error); }
         }
@@ -252,8 +252,12 @@ function mount(app, { settingsStore }) {
       try {
         const now = Date.now();
         if (b) {
-          if (b.profile === "photo" && capturing === 0 && now - lastProfile > 1500) { lastProfile = now; await applyExposure(b, "live"); viewBump = Date.now(); if (!alive) break; }
-          if (!b.lvOn && now - lastStart > 2000 && capturing === 0) { lastStart = now; await applyExposure(b, "live"); if (!alive) break; b.send("LIVEVIEW_START"); viewBump = Date.now(); }
+          // Nikon / Canon: setelah jepret, program perantara menyalakan live view sendiri. Mengganti ISO / mengirim LIVEVIEW_START tepat saat itu membuat kamera 'DeviceBusy' dan live view mati berulang-ulang (macet di tengah sesi). Tunggu live view jalan lagi (maks 2,5 dtk) dulu.
+          const nikonSettle = !!b.native && capturing === 0 && captureEndedAt > 0; // Nikon & Canon: keduanya menyalakan live view sendiri setelah jepret
+          if (nikonSettle && !b.lvOn && (b.lastFrameAt || 0) > captureEndedAt) b.lvOn = true;
+          const settling = nikonSettle && !b.lvOn && now - captureEndedAt < 2500;
+          if (b.profile === "photo" && capturing === 0 && !settling && now - lastProfile > 1500) { lastProfile = now; await applyExposure(b, "live"); viewBump = Date.now(); if (!alive) break; }
+          if (!b.lvOn && now - lastStart > 2000 && capturing === 0 && !settling) { lastStart = now; await applyExposure(b, "live"); if (!alive) break; b.send("LIVEVIEW_START"); viewBump = Date.now(); }
           const f = b.readFrameIfNew();
           if (f) {
             put(f);
@@ -268,7 +272,7 @@ function mount(app, { settingsStore }) {
           // Pemantau macet (mis. Nikon menolak live view lagi setelah jepret, atau kabel/driver tersendat sesaat)
           // Waktu pengaturan profil (ISO / shutter / aperture, tiap properti bisa 0,5-1 dtk) dan LIVEVIEW_START tidak dihitung sebagai 'macet': dulu pemantau menghitungnya dan menyalakan ulang live view berulang-ulang (sampai 10x), layar tampak beku
           const ref = Math.max(b.lastFrameAt || 0, startedAt, captureEndedAt, lastRecover, viewBump);
-          const stallMs = ref === viewBump ? STALL_MS + 3000 : STALL_MS; // baru saja LIVEVIEW_START: Canon butuh beberapa detik untuk mengirim frame pertama
+          const stallMs = ref === viewBump || (ref === captureEndedAt && b.native) ? STALL_MS + 3000 : STALL_MS; // baru saja LIVEVIEW_START: Canon butuh beberapa detik untuk mengirim frame pertama
           if (capturing === 0 && Date.now() - ref > stallMs && Date.now() - lastRecover > STALL_MS) {
             lastRecover = Date.now(); recoveries++;
             log(`live view macet ${Math.round((Date.now() - ref) / 100) / 10} dtk tanpa frame -> hidupkan ulang (#${recoveries})`);
@@ -378,7 +382,7 @@ function mount(app, { settingsStore }) {
       const c0 = cfg();
       if (c0.driver !== "digicam") {
         const bc = sdkBridge.get(c0.driver, c0.model);
-        await applyExposure(bc, "photo");
+        await Promise.race([applyExposure(bc, "photo"), wait(10000)]); // setelan kamera yang macet tidak boleh menahan jepret
         buf = await bc.capture(c0.model, c0.zModel);
         return `data:image/jpeg;base64,${buf.toString("base64")}`;
       }

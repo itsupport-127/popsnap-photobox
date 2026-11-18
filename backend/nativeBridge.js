@@ -67,7 +67,7 @@ class NativeBridge {
   reset() {
     this.ready = false; this.connected = false; this.camera = ""; this.lvOn = false; this.error = "";
     this.waiters = []; this.frame = null; this.frameSeq = 0; this.lastSeq = 0; this.frameOk = 0; this.frameRejected = 0; this.frameNoEoi = 0; this.resyncBytes = 0; this.bridgeFps = 0;
-    this.expApplied = {}; this.lastFrameAt = 0; this.frameWaiters = []; this.camWaiters = []; this.camInfoData = null; this.camSetResult = null; this.camOld = false;
+    this.expApplied = {}; this.lastFrameAt = 0; this.frameWaiters = []; this.camWaiters = []; this.setWaiters = []; this.camInfoData = null; this.camSetResult = null; this.camOld = false;
     this.rx = Buffer.alloc(0); this.pend = []; this.pendBytes = 0;
   }
   log(l) { this.lines.push(l); if (this.lines.length > 60) this.lines.shift(); console.log(`[native:${this.brand}]`, l); }
@@ -155,8 +155,8 @@ class NativeBridge {
     else if (/^CAPTURE_OK/.test(line)) { const p = this.photo; this.photo = null; for (const w of this.waiters.splice(0)) p ? w.resolve(p) : w.reject(new Error("Foto kosong")); }
     else if (/^CAPTURE_FAILED\|/.test(line)) { this.lvOn = false; for (const w of this.waiters.splice(0)) w.reject(new Error(line.slice(15))); }
     else if (/^CAMINFO\|/.test(line)) { try { this.camInfoData = JSON.parse(line.slice(8)); } catch { this.camInfoData = { error: "Balasan kamera tidak terbaca" }; } for (const w of this.camWaiters.splice(0)) w(this.camInfoData); }
-    else if (/^CAMSET_OK\|/.test(line)) this.camSetResult = { ok: true, prop: line.slice(10) };
-    else if (/^CAMSET_FAILED\|/.test(line)) { const [, prop, ...why] = line.split("|"); this.camSetResult = { ok: false, prop, error: why.join("|") || "Ditolak kamera" }; }
+    else if (/^CAMSET_OK\|/.test(line)) { this.camSetResult = { ok: true, prop: line.slice(10) }; for (const w of this.setWaiters.splice(0)) w(this.camSetResult); }
+    else if (/^CAMSET_FAILED\|/.test(line)) { const [, prop, ...why] = line.split("|"); this.camSetResult = { ok: false, prop, error: why.join("|") || "Ditolak kamera" }; for (const w of this.setWaiters.splice(0)) w(this.camSetResult); }
     else if (/^ERROR\|Perintah tidak dikenal: CAM_/.test(line)) { this.camOld = true; for (const w of this.camWaiters.splice(0)) w({ error: "Program perantara kamera masih versi lama. Build ulang popsnap_" + this.brand + "_bridge.exe dan salin ke backend\\sdk." }); }
     else if (/^ERROR\|Perintah tidak dikenal: LV_BOOST/.test(line)) this.log("(exe Canon lama: belum mendukung Canon Auto Exposure, build ulang popsnap_canon_bridge.exe)");
     else if (/^ERROR\|/.test(line)) this.error = line.slice(6);
@@ -195,11 +195,21 @@ class NativeBridge {
   }
 
   /** Ubah satu setelan; hasilnya { ok, error, info } (info = setelan terbaru dari kamera). */
-  async camSet(model, prop, value) {
+  async camSet(model, prop, value, { quiet = false } = {}) {
     await this.ensure(model);
     if (!/^(iso|av|tv|wb)$/.test(prop) || !/^\d{1,10}$/.test(String(value))) return { ok: false, error: "Setelan tidak valid" };
+    // quiet: pergantian profil otomatis (tiap foto) -> program perantara TIDAK perlu membaca ulang semua setelan kamera (lalu lintas USB ramai bikin live view macet). Exe lama tidak kenal 'quiet' -> otomatis kembali ke cara lama.
+    if (quiet && !this.noQuiet) {
+      this.camSetResult = null;
+      const res = new Promise((resolve) => { const w = (r) => { clearTimeout(t); resolve(r); }; const t = setTimeout(() => { const i = this.setWaiters.indexOf(w); if (i >= 0) this.setWaiters.splice(i, 1); resolve(null); }, 8000); this.setWaiters.push(w); });
+      this.send(`CAM_SET ${prop} ${value} quiet`);
+      const r = await res;
+      if (r && !r.ok && /Perintah tidak lengkap/.test(r.error || "")) { this.noQuiet = true; this.log("(exe kamera lama: belum mendukung CAM_SET quiet, pakai cara lama; build ulang supaya lebih lancar)"); }
+      else return r || { ok: false, error: "Kamera tidak menjawab" };
+    }
     this.camSetResult = null;
-    const info = new Promise((resolve) => { const t = setTimeout(() => resolve(null), 8000); this.camWaiters.push((d) => { clearTimeout(t); resolve(d); }); });
+    // waiter yang kedaluwarsa HARUS dibuang: kalau tidak, balasan CAMINFO yang telat dipakai oleh permintaan berikutnya (hasil tertukar)
+    const info = new Promise((resolve) => { const w = (d) => { clearTimeout(t); resolve(d); }; const t = setTimeout(() => { const i = this.camWaiters.indexOf(w); if (i >= 0) this.camWaiters.splice(i, 1); resolve(null); }, 8000); this.camWaiters.push(w); });
     this.send(`CAM_SET ${prop} ${value}`);
     const d = await info;
     const r = this.camSetResult || { ok: false, error: "Kamera tidak menjawab" };

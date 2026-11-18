@@ -395,7 +395,7 @@ static void camInfo() {
   say("CAMINFO|{\"brand\":\"canon\",\"mode\":" + std::to_string(ae) + ",\"manual\":" + (ae == AE_MANUAL ? "true" : "false") + "," + propJson("iso") + "," + propJson("av") + "," + propJson("tv") + "," + propJson("wb") + "}");
   if (reb && g_evf && g_boostStops > 0) boostApply();
 }
-static void camSet(const std::string& n, const std::string& v) {
+static void camSet(const std::string& n, const std::string& v, bool quiet = false) {
   U32 id = propIdOf(n);
   if (!g_connected || !g_cam) { say("CAMSET_FAILED|" + n + "|Kamera belum tersambung"); return; }
   if (!id || v.empty()) { say("CAMSET_FAILED|" + n + "|Perintah tidak lengkap"); return; }
@@ -404,7 +404,7 @@ static void camSet(const std::string& n, const std::string& v) {
   bool ok = setVerified(id, want);
   if (reb && g_evf && g_boostStops > 0) boostApply();
   if (ok) say("CAMSET_OK|" + n); else say("CAMSET_FAILED|" + n + "|Kamera menolak nilai ini (pastikan mode kamera M dan nilainya tersedia)");
-  camInfo();
+  if (!quiet) camInfo(); // 'quiet' = pergantian profil otomatis: tidak perlu baca ulang semua setelan
 }
 
 int main() {
@@ -430,7 +430,7 @@ int main() {
       else if (cmd == "LIVEVIEW_STOP") evfStop(true);
       else if (cmd.rfind("LV_BOOST", 0) == 0) { int n = atoi(cmd.c_str() + 8); if (n < 0) n = 0; if (n > 6) n = 6; g_boostStops = n; if (n == 0) boostRestore(); else if (g_evf && !g_boosted) boostApply(); }
       else if (cmd == "CAM_INFO") camInfo();
-      else if (cmd.rfind("CAM_SET ", 0) == 0) { size_t a = cmd.find(' ', 8); if (a == std::string::npos) say("CAMSET_FAILED||Perintah tidak lengkap"); else camSet(cmd.substr(8, a - 8), cmd.substr(a + 1)); }
+      else if (cmd.rfind("CAM_SET ", 0) == 0) { size_t a = cmd.find(' ', 8); if (a == std::string::npos) say("CAMSET_FAILED||Perintah tidak lengkap"); else { std::string val = cmd.substr(a + 1); bool q = false; size_t qp = val.find(" quiet"); if (qp != std::string::npos) { q = true; val = val.substr(0, qp); } camSet(cmd.substr(8, a - 8), val, q); } }
       else if (cmd == "CAPTURE") capture();
       else if (cmd == "DISCONNECT") disconnect(true);
       else if (cmd == "QUIT") break;
