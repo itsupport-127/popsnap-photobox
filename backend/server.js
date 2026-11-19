@@ -720,11 +720,29 @@ function listStickers() {
   const categories = db.prepare(`SELECT c.id, c.label, (SELECT COUNT(*) FROM stickers s WHERE s.category_id = c.id) AS count FROM sticker_categories c ORDER BY c.sort, c.rowid`).all();
   const stickers = db.prepare("SELECT id, category_id, name, file, width, height FROM stickers ORDER BY sort, rowid").all()
     .map((s) => ({ id: s.id, categoryId: s.category_id, name: s.name, url: toFullUrl(`/uploads/${s.file}`), width: s.width, height: s.height }));
-  return { categories, uncategorized: stickers.filter((s) => !s.categoryId).length, stickers };
+  return { categories, uncategorized: stickers.filter((s) => !s.categoryId).length, stickers, builtin: builtinStickerCfg() };
+}
+// Stiker bawaan (gambar vektor di aplikasi): mode "auto" = hanya dipakai bila belum ada stiker unggahan, "on" = selalu tampil bersama stikermu, "off" = tidak tampil.
+// hidden = daftar id stiker bawaan yang disembunyikan satu per satu.
+function builtinStickerCfg() {
+  try {
+    const v = JSON.parse(db.prepare("SELECT value FROM app_settings WHERE key = 'stickers_builtin'").get()?.value || "{}");
+    return { mode: ["auto", "on", "off"].includes(v.mode) ? v.mode : "auto", hidden: Array.isArray(v.hidden) ? v.hidden.filter((x) => typeof x === "string").slice(0, 100) : [] };
+  } catch { return { mode: "auto", hidden: [] }; }
 }
 const cleanStickerText = (v, max) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 app.get("/api/stickers", (req, res) => res.json(listStickers()));
+app.put("/api/stickers-builtin", requirePerm("template.manage"), (req, res) => {
+  const b = req.body || {}, cur = builtinStickerCfg();
+  const next = {
+    mode: b.mode !== undefined ? (["auto", "on", "off"].includes(b.mode) ? b.mode : cur.mode) : cur.mode,
+    hidden: Array.isArray(b.hidden) ? [...new Set(b.hidden.filter((x) => typeof x === "string" && /^builtin-[a-z0-9_-]{1,30}$/.test(x)))].slice(0, 100) : cur.hidden,
+  };
+  db.prepare("INSERT INTO app_settings (key, value) VALUES ('stickers_builtin', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(next));
+  logActivity(req.user, "sticker.builtin", "stiker bawaan", { mode: next.mode, disembunyikan: next.hidden.length }, req);
+  res.json(listStickers());
+});
 
 app.post("/api/stickers", requirePerm("template.manage"), upload.array("images", 40), (req, res) => {
   const files = req.files || [];

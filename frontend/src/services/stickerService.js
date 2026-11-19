@@ -6,14 +6,26 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /** { categories:[{id,label,count}], uncategorized, stickers:[{id,categoryId,name,url,width,height}], builtin } */
 export async function listStickers() {
+  let data = null;
   try {
     const res = await fetch(`${API_BASE}/api/stickers`);
     if (!res.ok) throw new Error("backend unavailable");
-    const data = await res.json();
-    if (data.stickers?.length) return { ...data, builtin: false };
+    data = await res.json();
   } catch { /* backend mati -> pakai stiker bawaan */ }
-  return { categories: [], uncategorized: 0, stickers: DEFAULT_STICKERS, builtin: true };
+  const up = data?.stickers ?? [];
+  const cfg = data?.builtin ?? { mode: "auto", hidden: [] };
+  const showBuiltin = cfg.mode === "on" || (cfg.mode === "auto" && up.length === 0);
+  const own = showBuiltin ? DEFAULT_STICKERS.filter((s) => !(cfg.hidden || []).includes(s.id)) : [];
+  if (!own.length) return { categories: data?.categories ?? [], uncategorized: data?.uncategorized ?? 0, stickers: up, builtin: false };
+  const cats = data?.categories ?? [];
+  if (!up.length || !cats.length) return { categories: cats, uncategorized: (data?.uncategorized ?? 0) + own.length, stickers: [...up, ...own], builtin: !up.length };
+  // ada kategori unggahan: stiker bawaan jadi satu tab sendiri
+  return { categories: [...cats, { id: "builtin", label: "Bawaan", count: own.length }], uncategorized: data.uncategorized, stickers: [...up, ...own.map((s) => ({ ...s, categoryId: "builtin" }))], builtin: false };
 }
+
+/** Pengaturan stiker bawaan: { mode: "auto"|"on"|"off", hidden: [id,...] } */
+export const saveBuiltinStickers = (patch) => call("/api/stickers-builtin", "PUT", patch);
+export { DEFAULT_STICKERS };
 
 async function call(path, method, body) {
   const res = await fetch(`${API_BASE}${path}`, {

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Page, Card, Btn, Notice } from "./ui";
 import { inputCls } from "./editorKit";
 import {
-  adminListStickers, uploadStickers, updateSticker, deleteSticker,
+  adminListStickers, uploadStickers, updateSticker, deleteSticker, saveBuiltinStickers, DEFAULT_STICKERS,
   createStickerCategory, renameStickerCategory, deleteStickerCategory,
 } from "../services/stickerService";
 
@@ -10,7 +10,7 @@ const CHECKER = "repeating-conic-gradient(#E9EEF3 0% 25%, #fff 0% 50%) 50% / 16p
 
 /** Admin > Stiker: unggah stiker untuk layar "Add sticker" di booth, dikelompokkan per kategori. */
 export default function StickersPage() {
-  const [data, setData] = useState({ categories: [], uncategorized: 0, stickers: [] });
+  const [data, setData] = useState({ categories: [], uncategorized: 0, stickers: [], builtin: { mode: "auto", hidden: [] } });
   const [tab, setTab] = useState("all"); // all | none | id kategori
   const [msg, setMsg] = useState(null); // { tone, text }
   const [busy, setBusy] = useState(false);
@@ -25,7 +25,7 @@ export default function StickersPage() {
     setBusy(true); setMsg(null);
     try {
       const r = await fn();
-      if (r) { setData({ categories: r.categories, uncategorized: r.uncategorized, stickers: r.stickers }); if (okText) setMsg({ tone: "ok", text: okText(r) }); return r; }
+      if (r) { setData((p) => ({ categories: r.categories, uncategorized: r.uncategorized, stickers: r.stickers, builtin: r.builtin ?? p.builtin })); if (okText) setMsg({ tone: "ok", text: okText(r) }); return r; }
     } catch (e) { setMsg({ tone: "error", text: e.message }); }
     finally { setBusy(false); }
   };
@@ -37,6 +37,7 @@ export default function StickersPage() {
     run(() => uploadStickers(list, targetCat), (r) => `${r.added} stiker ditambahkan.${r.rejected?.length ? ` Ditolak: ${r.rejected.join("; ")}` : ""}`);
   };
 
+  const bi = data.builtin || { mode: "auto", hidden: [] }, hid = bi.hidden || [];
   const shown = data.stickers.filter((s) => (tab === "all" ? true : tab === "none" ? !s.categoryId : s.categoryId === tab));
   const curCat = data.categories.find((c) => c.id === tab);
 
@@ -60,7 +61,7 @@ export default function StickersPage() {
 
   return (
     <Page title="Stiker" subtitle="Stiker yang bisa ditempel tamu di layar Add sticker. Kategori bersifat opsional: kalau dibuat, muncul sebagai tab di booth.">
-      {data.stickers.length === 0 && <Notice tone="info">Belum ada stiker unggahan, jadi booth memakai stiker bawaan. Begitu kamu mengunggah satu stiker, stiker bawaan diganti oleh stikermu.</Notice>}
+      {data.stickers.length === 0 && <Notice tone="info">Belum ada stiker unggahan, jadi booth memakai stiker bawaan (atur di kartu "Stiker bawaan" di bawah). Begitu kamu mengunggah satu stiker, stiker bawaan otomatis diganti, kecuali kamu pilih "Selalu".</Notice>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
       <Card title="Kategori" hint="Contoh: Ulang tahun, Wisuda, Lucu, Natal. Menghapus kategori tidak menghapus stikernya.">
@@ -88,6 +89,36 @@ export default function StickersPage() {
           {busy ? "Mengunggah…" : "Klik di sini atau seret file stiker ke sini"}
           <input ref={fileRef} type="file" multiple accept="image/png,image/webp,image/gif,image/jpeg" className="hidden"
             onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.target.value = ""; }} />
+        </div>
+      </Card>
+
+      <Card title={`Stiker bawaan (${DEFAULT_STICKERS.length - hid.length} tampil dari ${DEFAULT_STICKERS.length})`} hint="Stiker gambar bawaan aplikasi. Stiker bawaan tidak bisa dihapus permanen, tapi bisa disembunyikan dari booth. Mau diganti? Unggah stikermu di atas, lalu sembunyikan bawaan.">
+        <div className="flex flex-wrap gap-2 items-center mb-3">
+          <span className="text-[13px] font-bold">Tampilkan di booth:</span>
+          <select className={`${inputCls} !w-auto`} value={bi.mode} disabled={busy} onChange={(e) => run(() => saveBuiltinStickers({ mode: e.target.value }), () => "Pengaturan stiker bawaan disimpan.")}>
+            <option value="auto">Otomatis (hanya kalau belum ada stiker unggahan)</option>
+            <option value="on">Selalu, bersama stiker unggahan (tab "Bawaan")</option>
+            <option value="off">Jangan tampilkan sama sekali</option>
+          </select>
+          <Btn disabled={busy} onClick={() => run(() => saveBuiltinStickers({ hidden: DEFAULT_STICKERS.map((s) => s.id) }), () => "Semua stiker bawaan disembunyikan.")}>Sembunyikan semua</Btn>
+          <Btn disabled={busy} onClick={() => run(() => saveBuiltinStickers({ hidden: [] }), () => "Semua stiker bawaan ditampilkan.")}>Tampilkan semua</Btn>
+        </div>
+        {bi.mode === "auto" && data.stickers.length > 0 && <p className="text-[12px] text-[#6B7684] mb-3">Saat ini sudah ada stiker unggahan, jadi stiker bawaan tidak tampil di booth. Pilih "Selalu" kalau mau menampilkannya juga.</p>}
+        <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
+          {DEFAULT_STICKERS.map((s) => {
+            const off = hid.includes(s.id) || bi.mode === "off";
+            return (
+              <div key={s.id} className={`border border-[#D5DCE4] rounded-[14px] p-2 bg-white flex flex-col gap-1.5 ${off ? "opacity-50" : ""}`}>
+                <div className="aspect-square rounded-[10px] flex items-center justify-center" style={{ background: CHECKER }}>
+                  <img src={s.url} alt={s.name} className="max-w-full max-h-full object-contain p-1" draggable={false} />
+                </div>
+                <button className="text-[12px] font-bold text-[#E02843] hover:underline text-left disabled:opacity-40" disabled={busy}
+                  onClick={() => run(() => saveBuiltinStickers({ hidden: hid.includes(s.id) ? hid.filter((x) => x !== s.id) : [...hid, s.id] }))}>
+                  {hid.includes(s.id) ? "Tampilkan" : "Sembunyikan"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
