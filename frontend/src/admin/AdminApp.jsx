@@ -18,6 +18,7 @@ import StickersPage from "./StickersPage";
 import FiltersPage from "./FiltersPage";
 import ReadyCheckPage from "./ReadyCheckPage";
 import SocialPage from "./SocialPage";
+import RemotePage from "./RemotePage";
 import { Icon } from "./editorKit";
 import { StatusDot } from "./ui";
 
@@ -42,6 +43,7 @@ const NAV = [
   { to: "/admin/social", icon: "star", label: "Sosmed", perm: ["settings.manage"] },
   { to: "/admin/payment", icon: "wallet", label: "Pembayaran", perm: ["payment.mode", "payment.gateway"] },
   { to: "/admin/voucher", icon: "ticket", label: "Voucher", perm: ["voucher.manage"] },
+  { to: "/admin/remote", icon: "gear", label: "Remote", perm: ["settings.manage"] },
   { to: "/admin/tools", icon: "wrench", label: "Tools", perm: ["tools.maintenance"] },
   { to: "/admin/users", icon: "user", label: "Pengguna", perm: ["users.manage"] },
   { to: "/admin/activity", icon: "history", label: "Log", perm: ["activity.view"] },
@@ -134,6 +136,7 @@ export default function AdminApp({ user: initialUser, onLogout }) {
                   <Route path="voucher" element={guard(<VoucherPage />, "voucher.manage")} />
                   <Route path="settings" element={guard(<SettingsPage />, "settings.manage")} />
                   <Route path="tools/camera" element={guard(<CameraSettingsPage />, "settings.manage")} />
+                  <Route path="remote" element={guard(<RemotePage />, "settings.manage")} />
                   <Route path="tools" element={guard(<ToolsPage />, "tools.maintenance")} />
                   <Route path="users" element={guard(<UsersPage user={user} />, "users.manage")} />
                   <Route path="activity" element={guard(<ActivityPage />, "activity.view")} />

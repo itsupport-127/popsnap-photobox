@@ -16,6 +16,8 @@ import ConsentScreen from "./screens/ConsentScreen";
 import DisclaimerScreen from "./screens/DisclaimerScreen";
 import MediaCaptureScreen from "./screens/MediaCaptureScreen";
 import KioskLock from "./components/KioskLock";
+import RemoteLockScreen from "./components/RemoteLockScreen";
+import useRemoteLink from "./hooks/useRemoteLink";
 import Backdrop from "./components/Backdrop";
 import { loadRuntimeConfig } from "./services/settingsService";
 import { getCurrentUser, getToken, refreshMe } from "./services/authService";
@@ -66,6 +68,8 @@ function KioskApp() {
   const [settings, setSettings] = useState(null);
   const camera = useCameraStatus();
   const firstLoad = useRef(true);
+  // Remote Booth: lapor status + terima perintah (kunci / batalkan sesi / muat ulang). Tidak berpengaruh kalau Remote tidak diaktifkan.
+  const remote = useRemoteLink(session.state, session.shots?.length ?? null, dispatch, STATES.WELCOME);
 
   useEffect(() => {
     listTemplatesByCategory().then(setTemplatesByCategory);
@@ -111,7 +115,7 @@ function KioskApp() {
   return (
     <div className="kiosk-root h-screen w-screen overflow-hidden">
       <Backdrop />
-      {session.state === STATES.WELCOME && (
+      {session.state === STATES.WELCOME && remote.locked !== "on" && (
         <WelcomeScreen dispatch={dispatch} settings={settings} camera={camera} singleTemplate={singleTemplate} />
       )}
 
@@ -141,6 +145,8 @@ function KioskApp() {
       {session.state === STATES.RESULT && (
         <ResultScreen session={session} dispatch={dispatch} />
       )}
+
+      {remote.locked === "on" && <RemoteLockScreen message={remote.lockMessage} />}
 
       {/* Gembok -> PIN: ada di SEMUA layar booth. Posisi & gaya diatur di Admin > Pengaturan > Tampilan. */}
       <KioskLock screenKey={session.state} inSession={session.state !== STATES.WELCOME} />

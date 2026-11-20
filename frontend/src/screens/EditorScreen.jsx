@@ -60,7 +60,7 @@ export default function EditorScreen({ session, dispatch }) {
   const portrait = shape === "portrait";
   const L = LAYOUT[shape];
   const PREVIEW_BOX = L.preview, TILE = L.tile;
-  const { remaining } = useCountdown(appConfig.timers.editor, () => dispatch({ type: "FINISH_EDITOR" }), true);
+  const { remaining } = useCountdown(appConfig.timers.editor, () => dispatch({ type: "FINISH_EDITOR", payload: { autofill: true } }), true);
   const timerText = `${String(Math.floor(remaining / 60)).padStart(2, "0")}.${String(remaining % 60).padStart(2, "0")}`;
 
   const [phaseRaw, setPhase] = useState("pick"); // pick | style | stickers
@@ -70,6 +70,7 @@ export default function EditorScreen({ session, dispatch }) {
   const listRef = useRef(null);
   const suppressClick = useRef(false);
   const pinching = useRef(false); // sedang cubit dua jari di bingkai (seretan satu jari dibatalkan)
+  const [filterCat, setFilterCat] = useState(null); // null = otomatis | all | none (tanpa kategori) | nama kategori filter
   const [adjSlot, setAdjSlot] = useState(null); // nomor slot yang sedang di-zoom / digeser (jendela Zoom / Geser), null = tertutup
 
   const template = session.selectedTemplate;
@@ -91,7 +92,17 @@ export default function EditorScreen({ session, dispatch }) {
   plan.slots.forEach((l) => photoAssignment.set(l.id, session.photosForTemplate[plan.indexByLayer.get(l.id)] ?? undefined));
 
   const frame = fit(cw / ch, PREVIEW_BOX.w, PREVIEW_BOX.h);
-  const filterOptions = getFilterOptions();
+  const allFilterOptions = getFilterOptions();
+  // Kategori filter (dibuat admin): tab di atas daftar filter. "No Filter" selalu tampil.
+  const filterCats = [...new Set(allFilterOptions.map((f) => f.category).filter(Boolean))];
+  const hasUncat = allFilterOptions.some((f) => f.id !== "none" && !f.category);
+  const showFilterTabs = filterCats.length > 0;
+  // Banyak filter (>25): buka di kategori pertama supaya layar tidak berat menggambar ratusan pratinjau sekaligus
+  const autoFilterCat = filterCats.length && allFilterOptions.length > 25 ? filterCats[0] : "all";
+  const curFilterCat = filterCat === "all" || filterCat === "none" || filterCats.includes(filterCat) ? filterCat : autoFilterCat;
+  const filterOptions = !showFilterTabs || curFilterCat === "all" ? allFilterOptions
+    : allFilterOptions.filter((f) => f.id === "none" || (curFilterCat === "none" ? !f.category : f.category === curFilterCat));
+  const FTAB = showFilterTabs ? 62 : 0; // tinggi baris tab di dalam panel filter
   const swatchPhoto = session.shots[chosen.find((v) => v != null)] ?? session.shots[0];
 
   const removeSlot = (slot) => {
@@ -259,7 +270,15 @@ export default function EditorScreen({ session, dispatch }) {
               {/* Filter */}
               <div style={{ position: "absolute", left: U(L.filters.left), top: U(L.filters.top), width: U(L.filters.width), height: U(L.filters.height), borderRadius: U(32), background: "#F5F5F5", overflow: "hidden" }}>
                 {/* Daftar filter buatan admin: 3 kolom, bisa digulir kalau lebih dari 6 */}
-                <div className="ed-list" style={{ position: "absolute", inset: 0, overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", scrollbarWidth: "none" }}>
+                {showFilterTabs && (
+                  <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: U(FTAB), display: "flex", alignItems: "center", gap: U(8), padding: `0 ${U(14)}`, overflowX: "auto", scrollbarWidth: "none", touchAction: "pan-x", zIndex: 2, background: "#F5F5F5" }}>
+                    {[{ id: "all", label: "Semua" }, ...filterCats.map((c) => ({ id: c, label: c })), ...(hasUncat ? [{ id: "none", label: "Lainnya" }] : [])].map((c) => (
+                      <button key={c.id} type="button" tabIndex={locked ? -1 : 0} onClick={() => setFilterCat(c.id)}
+                        style={{ flex: "none", height: U(40), padding: `0 ${U(20)}`, borderRadius: 9999, border: "1px solid #000", fontSize: U(21), fontStyle: "italic", fontWeight: 700, background: curFilterCat === c.id ? "#E02843" : "#FFEAC5", color: curFilterCat === c.id ? "#fff" : "#000", whiteSpace: "nowrap" }}>{c.label}</button>
+                    ))}
+                  </div>
+                )}
+                <div className="ed-list" style={{ position: "absolute", left: 0, right: 0, bottom: 0, top: U(FTAB), overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", scrollbarWidth: "none" }}>
                   <div style={{ position: "relative", height: U(33 + (Math.ceil(filterOptions.length / L.filters.cols) - 1) * 186 + 165 + 24) }}>
                     {filterOptions.map((f, i) => {
                       const cx = L.filters.centers[i % L.filters.cols];

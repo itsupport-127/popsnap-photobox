@@ -26,7 +26,7 @@ export async function loadRuntimeConfig() {
   appConfig.photoSession = { totalShots: s.session.totalShots, maxRetakes: s.session.maxRetakes };
   appConfig.cameraMode = s.camera.mode;
   appConfig.settings = s; // dibaca langsung oleh mesin state & hook kamera (bukan lewat React)
-  setFilters(s.editor?.filters);
+  setFilters(s.editor?.filters, s.editor);
   applyTheme(s.display?.colors);
   return s;
 }

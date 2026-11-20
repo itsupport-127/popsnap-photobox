@@ -50,6 +50,17 @@ export default function CameraSettingsPage() {
   // Profil terpisah: "photo" dipakai saat jepret, "live" saat live view menyala (server menerapkannya otomatis bergantian)
   const [ex, setEx] = useState({ split: false, live: {}, photo: {} });
   const [tab, setTab] = useState("photo");
+  // Jadwal otomatis ganti setelan per jam (siang / malam)
+  const [sch, setSch] = useState({ enabled: false, periods: [] });
+  useEffect(() => { getAdminSettings().then((s) => { const x = s?.camera?.exposureSchedule; if (x) setSch({ enabled: !!x.enabled, periods: x.periods || [] }); }).catch(() => {}); }, []);
+  async function saveSch(next) { setSch(next); try { await saveAdminSettings({ camera: { exposureSchedule: next } }); } catch (e) { setErr(e.message); } }
+  const lab = (prop, v) => { const o = info?.[prop]?.opts?.find(([x]) => String(x) === String(v)); return o ? o[1] : v; };
+  const sum = (pr) => PROPS.filter(({ key }) => pr?.[key] != null).map(({ key }) => `${key === "tv" ? "S" : key === "av" ? "f" : key === "iso" ? "ISO" : "WB"} ${lab(key, pr[key])}`).join(" · ") || "belum diisi";
+  const mins = (t) => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
+  const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  const activeP = sch.enabled ? sch.periods.find((p) => { const a = mins(p.from), z = mins(p.to); return a === z ? false : a < z ? nowM >= a && nowM < z : nowM >= a || nowM < z; }) : null;
+  const patchP = (i, ch) => saveSch({ ...sch, periods: sch.periods.map((p, k) => (k === i ? { ...p, ...ch } : p)) });
+  const fillP = (i) => { const cur = snap(info); patchP(i, ex.split ? { live: { ...ex.live }, photo: { ...ex.photo } } : { live: { ...cur }, photo: { ...cur } }); setMsg("Setelan kamera saat ini disimpan ke periode itu."); };
   useEffect(() => { getAdminSettings().then((s) => { const e = s?.camera?.exposure; if (e) setEx({ split: !!e.split, live: e.live || {}, photo: e.photo || {} }); }).catch(() => {}); }, []);
   const snap = (i) => Object.fromEntries(PROPS.map(({ key }) => [key, i?.[key]?.cur]).filter(([, v]) => v != null && v !== ""));
   async function saveEx(next) { setEx(next); try { await saveAdminSettings({ camera: { exposure: next } }); } catch (e) { setErr(e.message); } }
@@ -160,6 +171,39 @@ export default function CameraSettingsPage() {
             <div className="text-[12px] text-[#55606E] mt-2">Sedang mengedit profil <b>{tab === "photo" ? "Foto" : "Live view"}</b>: perubahan di bawah hanya tersimpan untuk profil ini. Contoh: Live view ISO tinggi supaya terang, Foto ISO rendah. Saat ini "Auto Exposure" bawaan dimatikan otomatis.</div>
           </div>
         )}
+      </Card>
+
+      <Card title="JADWAL OTOMATIS (siang / malam)" hint="Ganti setelan kamera (ISO / shutter / aperture / WB, Live dan Foto) otomatis menurut jam. Hanya Canon / Nikon langsung. Bisa dimatikan kapan saja; saat OFF, setelan dasar di atas yang dipakai.">
+        <label className="flex items-center gap-2 text-[14px] font-semibold text-[#181B23]">
+          <input type="checkbox" checked={sch.enabled} onChange={(e) => saveSch({ ...sch, enabled: e.target.checked })} />
+          Aktifkan jadwal otomatis
+        </label>
+        <p className="text-[12px] text-[#55606E] mt-1">{sch.enabled ? (activeP ? <>Sekarang jam {String(new Date().getHours()).padStart(2, "0")}:{String(new Date().getMinutes()).padStart(2, "0")} → periode aktif: <b>{activeP.label}</b>.</> : "Sekarang tidak masuk periode mana pun, jadi setelan dasar yang dipakai.") : "Jadwal OFF: setelan dasar dipakai sepanjang hari."}</p>
+        <div className="flex flex-col gap-3 mt-3">
+          {sch.periods.map((p, i) => (
+            <div key={p.id} className={`border rounded-xl p-3 ${activeP?.id === p.id ? "border-[#E02843] bg-[#FFF5F6]" : "border-[#D5DCE4] bg-white"}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <input className="w-36 border border-[#C7D0DA] rounded-lg px-2 py-1.5 text-[14px]" value={p.label} maxLength={24} onChange={(e) => patchP(i, { label: e.target.value })} aria-label="Nama periode" />
+                <span className="text-[13px]">dari</span>
+                <input type="time" className="border border-[#C7D0DA] rounded-lg px-2 py-1.5 text-[14px]" value={p.from} onChange={(e) => e.target.value && patchP(i, { from: e.target.value })} />
+                <span className="text-[13px]">sampai</span>
+                <input type="time" className="border border-[#C7D0DA] rounded-lg px-2 py-1.5 text-[14px]" value={p.to} onChange={(e) => e.target.value && patchP(i, { to: e.target.value })} />
+                <Btn onClick={() => fillP(i)} disabled={busy || !info}>Pakai setelan kamera sekarang</Btn>
+                <Btn variant="danger" onClick={() => { if (window.confirm(`Hapus periode "${p.label}"?`)) saveSch({ ...sch, periods: sch.periods.filter((_, k) => k !== i) }); }}>Hapus</Btn>
+              </div>
+              <div className="text-[12px] text-[#55606E] mt-2">Live: {sum(p.live)}<br />Foto: {sum(p.photo)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 flex-wrap mt-3">
+          <Btn variant="primary" disabled={sch.periods.length >= 6} onClick={() => saveSch({ ...sch, periods: [...sch.periods, { id: "p" + Math.random().toString(36).slice(2, 7), label: sch.periods.length ? "Malam" : "Siang", from: sch.periods.length ? "18:00" : "06:00", to: sch.periods.length ? "06:00" : "18:00", live: {}, photo: {} }] })}>+ Tambah periode</Btn>
+        </div>
+        <ol className="list-decimal pl-5 text-[12px] text-[#55606E] mt-3 space-y-0.5">
+          <li>Tambah periode (mis. Siang 06:00–18:00 dan Malam 18:00–06:00; jam boleh melewati tengah malam).</li>
+          <li>Atur ISO / shutter / aperture untuk Live dan Foto di bagian "Profil Live &amp; Foto" dan "Eksposur" di bawah sampai hasilnya pas.</li>
+          <li>Klik <b>Pakai setelan kamera sekarang</b> di periode yang cocok. Ulangi untuk periode lain.</li>
+          <li>Pergantian terjadi sendiri di sela sesi (tidak pernah saat menjepret). Pastikan jam PC booth benar.</li>
+        </ol>
       </Card>
 
       <Card title="EKSPOSUR" hint="Pilihan diambil dari kamera yang tersambung. Klik panah atau pilih dari daftar.">

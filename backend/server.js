@@ -2065,6 +2065,10 @@ app.post("/api/cloud/sync", requirePerm("payment.gateway"), async (req, res) => 
   res.json({ ...r, status: cloud.status() });
 });
 cloud.start();
+// Remote Booth (opsional, mati kalau belum diatur): sambung KELUAR ke server popsnap-remote. Lihat remoteAgent.js.
+const remoteAgent = require("./remoteAgent");
+remoteAgent.mount(app, requirePerm);
+remoteAgent.start();
 
 // ---------- POPSNAP Galeri: unggah hasil sesi ke cloud + halaman QR (Pengaturan > Pembayaran) ----------
 app.get("/api/gallery/status", requirePerm("payment.gateway"), (req, res) => res.json(gallery.status()));

@@ -331,6 +331,13 @@ export function sessionReducer(session, action) {
       return { ...session, editorState: { ...session.editorState, stickers: session.editorState.stickers.filter((st) => st.id !== action.payload.id) } };
     }
     case "FINISH_EDITOR": {
+      // Waktu habis (autofill): slot template yang masih kosong diisi foto yang belum terpakai, urut dari yang pertama. Tanpa ini hasil akhir berlubang.
+      if (action.payload?.autofill) {
+        const arr = templateSlots(session);
+        const used = new Set(arr.filter((i) => i != null));
+        const rest = session.shots.map((_, i) => i).filter((i) => !used.has(i));
+        return { ...session, state: STATES.RESULT, photosForTemplate: arr.map((v) => (v == null ? (rest.shift() ?? null) : v)) };
+      }
       return { ...session, state: STATES.RESULT };
     }
 

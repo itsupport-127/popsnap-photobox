@@ -21,7 +21,8 @@ const SLIDERS = [
   ["blur", "Blur lembut", 0, 6, "px"],
 ];
 
-const MAX_FILTERS = 24;
+const MAX_FILTERS = 150;
+const BUILTIN_IDS = DEFAULT_FILTERS.map((f) => f.id); // bw, f1..f4
 
 export default function SettingsFilters({ s, set, only }) {
   const vis = (t) => !only || only.includes(t); // tampilkan hanya kartu yang diminta halaman Pengaturan (pengelompokan baru)
@@ -31,16 +32,23 @@ export default function SettingsFilters({ s, set, only }) {
   const patch = (i, ch) => save(list.map((f, k) => (k === i ? { ...f, ...ch } : f)));
   const patchP = (i, key, v) => save(list.map((f, k) => (k === i ? { ...f, p: { ...f.p, [key]: v } } : f)));
   const fileRef = useRef(null);
+  const dirRef = useRef(null);
+  const [tab, setTab] = useState("all"); // all | none (tanpa kategori) | nama kategori
+  const cats = [...new Set(list.map((f) => f.category).filter(Boolean))];
+  const inTab = (f) => tab === "all" || (tab === "none" ? !f.category : f.category === tab);
+  const renameCat = () => { const n = (window.prompt("Nama baru kategori:", tab) || "").trim().slice(0, 24); if (n && n !== tab) { save(list.map((f) => (f.category === tab ? { ...f, category: n } : f))); setTab(n); } };
+  const removeCat = () => { if (window.confirm(`Hapus kategori "${tab}"? Filternya tidak dihapus, hanya jadi tanpa kategori.`)) { save(list.map((f) => (f.category === tab ? { ...f, category: "" } : f))); setTab("all"); } };
   const [busy, setBusy] = useState(false);
   const [importErr, setImportErr] = useState(null);
   const thumb = (f, className) => <FilteredImg src={SAMPLE} filterId={f.id} lut={f.lut ?? null} params={f.p} maxSide={400} className={className} style={{ objectFit: "cover" }} />;
 
   // Impor LUT .cube: parse -> strip PNG -> unggah -> jadi filter baru
   async function importCube(e) {
-    const files = [...e.target.files];
+    const files = [...e.target.files].filter((f) => /\.cube$/i.test(f.name)).sort((a, b) => String(a.webkitRelativePath || a.name).localeCompare(String(b.webkitRelativePath || b.name), undefined, { numeric: true }));
+    const fromFolder = files.some((f) => f.webkitRelativePath);
     e.target.value = "";
     setImportErr(null);
-    if (!files.length) return;
+    if (!files.length) return setImportErr("Tidak ada file .cube di pilihan itu.");
     setBusy(true);
     const added = [];
     const errs = [];
@@ -53,10 +61,13 @@ export default function SettingsFilters({ s, set, only }) {
         const up = await uploadSettingsAsset(new File([blob], "lut.png", { type: "image/png" }));
         if (!up) return;
         const name = (cube.title || file.name.replace(/\.cube$/i, "")).slice(0, 24) || "LUT";
-        added.push({ id: newId(), label: name, enabled: true, p: { ...NEUTRAL_FILTER }, lut: { url: up.fullUrl, size: cube.size, intensity: 100 } });
+        // Folder: nama subfolder = kategori. Pilih banyak file biasa: masuk ke tab kategori yang sedang dibuka.
+        const parts = String(file.webkitRelativePath || "").split("/");
+        const category = fromFolder ? (parts.length >= 2 ? parts[parts.length - 2] : "").slice(0, 24) : (tab !== "all" && tab !== "none" ? tab : "");
+        added.push({ id: newId(), label: name, category, enabled: true, p: { ...NEUTRAL_FILTER }, lut: { url: up.fullUrl, size: cube.size, intensity: 100 } });
       } catch (err) { errs.push(`${file.name}: ${err.message}`); }
     }
-    if (added.length) { save([...list, ...added]); setOpen(added[0].id); }
+    if (added.length) { save([...list, ...added]); setOpen(added.length === 1 ? added[0].id : null); setImportErr(errs.length ? errs.join(" • ") : null); if (added.length > 1) window.alert(`${added.length} filter diimpor${[...new Set(added.map((f) => f.category).filter(Boolean))].length ? ` ke ${[...new Set(added.map((f) => f.category).filter(Boolean))].length} kategori` : ""}. Klik Save untuk menyimpan.`); }
     if (errs.length) setImportErr(errs.join(" • "));
     setBusy(false);
   }
@@ -78,15 +89,39 @@ export default function SettingsFilters({ s, set, only }) {
   return (
     <>
       {vis("Filter foto") && (
+      <Card title="Filter bawaan" hint="Filter bawaan aplikasi (Black & White, Filter 1–4) dan tombol “No Filter”. Atur tampil / sembunyi sekaligus di sini; kalau mau mengubah satu per satu, pakai daftar di bawah (centang Tampil, hapus, atau urutkan).">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Check checked={s.editor?.showNoFilter !== false} onChange={(v) => set(["editor"], { ...(s.editor ?? {}), showNoFilter: v })} label="Tampilkan tombol “No Filter” (foto asli) di layar tamu" />
+        </div>
+        <div className="flex flex-wrap gap-2 items-center mt-3">
+          <Btn onClick={() => save(list.map((f) => (BUILTIN_IDS.includes(f.id) ? { ...f, enabled: false } : f)))}>Sembunyikan semua bawaan</Btn>
+          <Btn onClick={() => save(list.map((f) => (BUILTIN_IDS.includes(f.id) ? { ...f, enabled: true } : f)))}>Tampilkan semua bawaan</Btn>
+          <Btn onClick={() => save(list.map((f) => (BUILTIN_IDS.includes(f.id) ? { ...f, category: "Bawaan" } : f)))}>Pisahkan ke kategori “Bawaan”</Btn>
+          <span className="text-[12px] text-[#6B7684]">{list.filter((f) => BUILTIN_IDS.includes(f.id) && f.enabled !== false).length} dari {list.filter((f) => BUILTIN_IDS.includes(f.id)).length} filter bawaan tampil.</span>
+        </div>
+        <p className="text-[12px] text-[#6B7684] mt-2">Tips: setelah mengimpor banyak filter sendiri, “Pisahkan ke kategori Bawaan” membuat filter bawaan punya tab sendiri, tidak campur dengan filter impor. Kalau semua filter disembunyikan dan “No Filter” juga dimatikan, tamu tidak punya pilihan filter sama sekali.</p>
+      </Card>)}
+      {vis("Filter foto") && (
       <Card title="Filter foto" hint="Filter yang bisa dipilih tamu di layar Pilih & Edit Foto. “No Filter” selalu ada di urutan pertama. Tambah, ubah nama, atur efeknya, urutkan, atau matikan sesuai kebutuhan.">
+        {(cats.length > 0 || tab !== "all") && (
+          <div className="flex flex-wrap gap-2 items-center mb-3">
+            {[{ id: "all", label: "Semua", n: list.length }, ...cats.map((c) => ({ id: c, label: c, n: list.filter((f) => f.category === c).length })), ...(list.some((f) => !f.category) ? [{ id: "none", label: "Tanpa kategori", n: list.filter((f) => !f.category).length }] : [])].map((t) => (
+              <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`px-3 py-1.5 rounded-full text-[13px] font-bold italic border ${tab === t.id ? "bg-[#E02843] text-white border-black/50" : "bg-white border-[#C7D0DA] text-[#181B23]"}`}>{t.label} <span className="opacity-70">({t.n})</span></button>
+            ))}
+            {tab !== "all" && tab !== "none" && <><Btn onClick={renameCat}>Ganti nama</Btn><Btn variant="danger" onClick={removeCat}>Hapus kategori</Btn></>}
+          </div>
+        )}
+        <datalist id="filter-cats">{cats.map((c) => <option key={c} value={c} />)}</datalist>
         <div className="flex flex-col gap-2">
           {list.map((f, i) => {
+            if (!inTab(f)) return null;
             const isOpen = open === f.id;
             return (
               <div key={f.id} className={`border ${isOpen ? "border-[#4082AE]" : "border-[#D5DCE4]"} bg-white rounded-lg`}>
                 <div className="flex items-center gap-3 p-2.5">
                   <div className="w-20 h-[53px] rounded overflow-hidden flex-shrink-0 bg-[#ddd]" style={{ opacity: f.enabled ? 1 : 0.4 }}>{thumb(f, "w-full h-full")}</div>
                   <input className="flex-1 min-w-0 bg-[#F4F7FA] border border-[#C7D0DA] text-[#181B23] px-2 py-1 text-[13px] outline-none focus:border-[#4082AE]" value={f.label} maxLength={24} onChange={(e) => patch(i, { label: e.target.value })} aria-label="Nama filter" />
+                  <input list="filter-cats" className="w-32 bg-[#F4F7FA] border border-[#C7D0DA] text-[#181B23] px-2 py-1 text-[12px] outline-none focus:border-[#4082AE]" placeholder="Kategori" value={f.category || ""} maxLength={24} onChange={(e) => patch(i, { category: e.target.value })} aria-label="Kategori filter" />
                   <Check checked={f.enabled} onChange={(v) => patch(i, { enabled: v })} label="Tampil" />
                   <div className="flex items-center gap-1">
                     <button type="button" className="px-2 py-1 border border-[#C7D0DA] rounded disabled:opacity-30" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Naik">▲</button>
@@ -130,10 +165,12 @@ export default function SettingsFilters({ s, set, only }) {
           <Btn variant="primary" onClick={() => add(null)} disabled={list.length >= MAX_FILTERS}>+ Tambah filter</Btn>
           <Btn onClick={() => fileRef.current?.click()} disabled={busy || list.length >= MAX_FILTERS}>{busy ? "Mengimpor..." : "Impor LUT (.cube)"}</Btn>
           <input ref={fileRef} type="file" accept=".cube" multiple className="hidden" onChange={importCube} />
+          <Btn onClick={() => dirRef.current?.click()} disabled={busy || list.length >= MAX_FILTERS}>Impor folder LUT</Btn>
+          <input ref={dirRef} type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={importCube} />
           <Btn onClick={() => { if (window.confirm("Kembalikan daftar filter ke bawaan?")) { save(DEFAULT_FILTERS.map((f) => ({ ...f, p: { ...f.p } }))); setOpen(null); } }}>Kembalikan bawaan</Btn>
         </div>
         {importErr && <div className="mt-2"><Notice tone="error">{importErr}</Notice></div>}
-        <p className="text-[12px] text-[#6B7684] mt-2">LUT .cube = format standar warna (DaVinci Resolve, Lightroom, Photoshop, dll). Bisa pilih banyak file sekaligus; dukung LUT 3D (disarankan) dan 1D. {list.length}/{MAX_FILTERS} filter. Jangan lupa tekan “Simpan” di bawah. Kalau lebih dari 6 filter aktif, daftar di layar tamu bisa digulir.</p>
+        <p className="text-[12px] text-[#6B7684] mt-2">LUT .cube = format standar warna (DaVinci Resolve, Lightroom, Photoshop, dll). Bisa pilih banyak file sekaligus, atau satu FOLDER lewat “Impor folder LUT” (nama subfolder otomatis jadi kategori, mis. Warm/a.cube → kategori Warm); dukung LUT 3D (disarankan) dan 1D. {list.length}/{MAX_FILTERS} filter. Jangan lupa tekan “Simpan” di bawah. Kalau lebih dari 6 filter aktif, daftar di layar tamu bisa digulir.</p>
       </Card>)}
       <Notice tone="info">Filter yang sama dipakai untuk pratinjau di layar dan hasil akhir (cetak/unduh), jadi tampilannya selalu sama.</Notice>
     </>

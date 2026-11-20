@@ -13,15 +13,17 @@ export const DEFAULT_FILTERS = [
 ];
 
 let custom = DEFAULT_FILTERS;
+let showNone = true;
 
 /** Dipanggil saat pengaturan dimuat (loadRuntimeConfig). */
-export function setFilters(list) {
+export function setFilters(list, editorCfg) {
   custom = Array.isArray(list) ? list : DEFAULT_FILTERS;
+  showNone = editorCfg?.showNoFilter !== false;
 }
 
 /** Daftar pilihan untuk tamu: "No Filter" + filter aktif buatan admin. */
 export function getFilterOptions() {
-  return [{ id: "none", label: "No Filter" }, ...custom.filter((f) => f.enabled !== false).map((f) => ({ id: f.id, label: f.label }))];
+  return [...(showNone ? [{ id: "none", label: "No Filter" }] : []), ...custom.filter((f) => f.enabled !== false).map((f) => ({ id: f.id, label: f.label, category: f.category || "" }))];
 }
 
 /** Ubah parameter filter menjadi string CSS/canvas. Parameter netral dilewati; semuanya netral -> "none". */

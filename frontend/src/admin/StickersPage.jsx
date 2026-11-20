@@ -17,6 +17,7 @@ export default function StickersPage() {
   const [newCat, setNewCat] = useState("");
   const [over, setOver] = useState(false);
   const fileRef = useRef(null);
+  const dirRef = useRef(null);
 
   const load = useCallback(() => adminListStickers().then(setData).catch((e) => setMsg({ tone: "error", text: e.message })), []);
   useEffect(() => { load(); }, [load]);
@@ -38,6 +39,40 @@ export default function StickersPage() {
   };
 
   const bi = data.builtin || { mode: "auto", hidden: [] }, hid = bi.hidden || [];
+  // Impor FOLDER: nama subfolder = kategori (dibuat otomatis kalau belum ada); file di luar subfolder masuk kategori yang sedang dibuka
+  const importFolder = async (fileList) => {
+    const files = [...fileList].filter((f) => f.type.startsWith("image/"));
+    if (!files.length) return setMsg({ tone: "warn", text: "Tidak ada file gambar (PNG / WEBP / GIF / JPG) di folder itu." });
+    const groups = new Map(); // label kategori ("" = kategori yang sedang dibuka) -> file
+    for (const f of files) {
+      const parts = String(f.webkitRelativePath || "").split("/");
+      const label = (parts.length >= 3 ? parts[parts.length - 2] : parts.length === 2 ? parts[0] : "").trim().slice(0, 40);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(f);
+    }
+    setBusy(true); setMsg(null);
+    let added = 0, rejected = [], cats = [...data.categories], last = null;
+    try {
+      for (const [label, list] of groups) {
+        let catId = targetCat;
+        if (label) {
+          let c = cats.find((x) => x.label.toLowerCase() === label.toLowerCase());
+          if (!c) { const r = await createStickerCategory(label); if (!r) return; cats = r.categories; c = cats.find((x) => x.id === r.created) || cats.find((x) => x.label.toLowerCase() === label.toLowerCase()); }
+          catId = c?.id || "";
+        }
+        list.sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
+        for (let i = 0; i < list.length; i += 40) { // server menerima maks. 40 file per kiriman
+          const r = await uploadStickers(list.slice(i, i + 40), catId);
+          if (!r) return;
+          added += r.added || 0; rejected.push(...(r.rejected || [])); last = r;
+        }
+      }
+      if (last) setData((p) => ({ categories: last.categories, uncategorized: last.uncategorized, stickers: last.stickers, builtin: last.builtin ?? p.builtin }));
+      setMsg({ tone: rejected.length ? "warn" : "ok", text: `${added} stiker diimpor dari ${groups.size > 1 || [...groups.keys()][0] ? groups.size + " kategori/folder" : "folder"}.${rejected.length ? ` Ditolak: ${rejected.slice(0, 5).join("; ")}${rejected.length > 5 ? ` (+${rejected.length - 5})` : ""}` : ""}` });
+    } catch (e) { setMsg({ tone: "error", text: e.message }); load(); }
+    finally { setBusy(false); }
+  };
+
   const shown = data.stickers.filter((s) => (tab === "all" ? true : tab === "none" ? !s.categoryId : s.categoryId === tab));
   const curCat = data.categories.find((c) => c.id === tab);
 
@@ -86,9 +121,15 @@ export default function StickersPage() {
           onDrop={(e) => { e.preventDefault(); setOver(false); upload(e.dataTransfer.files); }}
           onClick={() => fileRef.current?.click()}
           className={`border-2 border-dashed rounded-[16px] px-4 py-8 text-center cursor-pointer text-[13px] ${over ? "border-[#E02843] bg-[#FDE8EB]" : "border-[#C7D0DA] bg-[#F4F7FA]"}`}>
-          {busy ? "Mengunggah…" : "Klik di sini atau seret file stiker ke sini"}
+          {busy ? "Mengunggah…" : "Klik di sini atau seret file stiker ke sini (bisa banyak file sekaligus)"}
           <input ref={fileRef} type="file" multiple accept="image/png,image/webp,image/gif,image/jpeg" className="hidden"
             onChange={(e) => { if (e.target.files?.length) upload(e.target.files); e.target.value = ""; }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-3 mt-3">
+          <Btn onClick={() => dirRef.current?.click()} disabled={busy}>Impor folder stiker</Btn>
+          <span className="text-[12px] text-[#6B7684]">Pilih satu folder berisi gambar. Nama subfolder otomatis jadi kategori (mis. Ulang Tahun/a.png → kategori “Ulang Tahun”). Folder tanpa subfolder masuk ke kategori yang sedang dibuka.</span>
+          <input ref={dirRef} type="file" webkitdirectory="" directory="" multiple className="hidden"
+            onChange={(e) => { if (e.target.files?.length) importFolder(e.target.files); e.target.value = ""; }} />
         </div>
       </Card>
 

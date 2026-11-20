@@ -409,7 +409,9 @@ export default function ResultScreen({ session, dispatch }) {
             <div className="strip-tray" style={{ left: U(pillX), top: U(y0 + 138), width: U(pillW), height: U(120), borderRadius: U(60), display: "flex", alignItems: "center", justifyContent: "center", fontSize: U(110), fontWeight: 800, color: "#000" }}>{copiesN}</div>
             <button type="button" className="strip-btn" aria-label="Kurangi" disabled={copiesN <= 1} onClick={() => setCopiesN((n) => Math.max(1, n - 1))} style={{ ...circle, left: U(pillX - 35), top: U(y0 + 168), opacity: copiesN <= 1 ? 0.55 : 1 }}>−</button>
             <button type="button" className="strip-btn" aria-label="Tambah" disabled={copiesN >= maxN} onClick={() => setCopiesN((n) => Math.min(maxN, n + 1))} style={{ ...circle, left: U(pillX + pillW - 34), top: U(y0 + 168), opacity: copiesN >= maxN ? 0.55 : 1 }}>+</button>
-            {pcfg.price > 0 && <p style={{ left: U(x0), top: U(y0 + 268), width: U(pw), margin: 0, textAlign: "center", fontSize: U(30), fontStyle: "italic", fontWeight: 800, color: "#000" }}>Rp {Number(total).toLocaleString("id-ID")}</p>}
+            <p style={{ left: U(x0), top: U(y0 + 268), width: U(pw), margin: 0, textAlign: "center", fontSize: U(30), fontStyle: "italic", fontWeight: 800, color: "#000" }}>
+              {pcfg.price > 0 ? `${copiesN} lembar × Rp ${Number(pcfg.price).toLocaleString("id-ID")} = Rp ${Number(total).toLocaleString("id-ID")}` : "Gratis"}
+            </p>
             <button type="button" className="strip-btn" onClick={() => addPrint(copiesN)} style={{ left: U(CW / 2 - 90), top: U(y0 + 368), width: U(180), height: U(63), fontSize: U(36), background: "#E02843", color: "#fff" }}>NEXT</button>
             <button type="button" onClick={() => setStep("main")} style={{ left: U(CW / 2 - 150), top: U(y0 + 368 + 63 + 22), width: U(300), height: U(50), background: "transparent", border: 0, color: "#fff", fontSize: U(28), fontStyle: "italic", fontWeight: 700, textDecoration: "underline" }}>Kembali</button>
           </>);

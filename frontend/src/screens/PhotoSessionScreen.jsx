@@ -161,6 +161,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
 
   // Rasio kamera asli (dilaporkan LiveView): bingkai menampilkan SELURUH pandangan kamera, tidak dipotong
   const [camAspect, setCamAspect] = useState(null);
+  const [lastAR, setLastAR] = useState(null); // rasio foto yang barusan dijepret (layar 'foto barusan')
   const [shotAR, setShotAR] = useState(null); // rasio foto hasil jepret (dilaporkan thumbnail): bisa beda dari live view (mis. HDMI 16:9 vs foto 3:2)
   // "Bentuk bingkai" (Admin > Kamera): bawaan = ikuti MODE KAMERA (landscape/portrait sesuai orientasi & rotasi kamera, tampil utuh); opsional = potong sesuai slot template
   // frameMode: camera = ikut kamera | template = ikut slot | screen = penuhi area layar (portrait/persegi: kotak lebih tinggi, kamera dipotong)
@@ -296,8 +297,32 @@ export default function PhotoSessionScreen({ session, dispatch }) {
           </div>
         )}
         {seq.phase === "review" && seq.lastPhoto && (
-          <div className="absolute inset-0 bg-black flex items-center justify-center">
-            <img src={seq.lastPhoto} alt="foto barusan" className="max-h-full max-w-full object-contain" style={mirrorStyle} />
+          <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden" style={{ containerType: "size" }}>
+            {(() => {
+              // Foto barusan tampil SAMA dengan live view: kalau bingkai memotong (ikut slot / penuhi layar) foto dipotong "cover";
+              // kalau tampil utuh, bagian di luar slot digelapkan + garis batas area slot (supaya tamu tahu yang akan tercetak).
+              const rvGuide = slotARof(slotOf(Math.max(0, Math.min(session.shots.length - 1, totalShots - 1)))) || aspect;
+              const crop = fitTpl || fillArea;
+              const A = lastAR || photoAR;
+              const boxIsSlot = crop && !!rvGuide && boxAspect > 0 && Math.abs(boxAspect / rvGuide - 1) < 0.03;
+              const showGuide = !!rvGuide && !boxIsSlot && lvCfg.guide !== false && !!firstSlot;
+              const vw = crop ? `max(100cqw, calc(100cqh * ${A}))` : `min(100cqw, calc(100cqh * ${A}))`;
+              const gw = `min(${vw}, calc(${vw} / ${A} * ${rvGuide}))`, gh = `calc(${gw} / ${rvGuide})`;
+              const x1 = `calc(50% - ${gw} / 2)`, x2 = `calc(50% + ${gw} / 2)`, y1 = `calc(50% - ${gh} / 2)`, y2 = `calc(50% + ${gh} / 2)`;
+              return (
+                <>
+                  <img src={seq.lastPhoto} alt="foto barusan" draggable={false}
+                    onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth && i.naturalHeight) setLastAR(i.naturalWidth / i.naturalHeight); }}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: crop ? "cover" : "contain", ...mirrorStyle }} />
+                  {showGuide && (
+                    <>
+                      <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "rgba(0,0,0,.5)", clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${x1} ${y1}, ${x1} ${y2}, ${x2} ${y2}, ${x2} ${y1}, ${x1} ${y1})` }} />
+                      <div aria-hidden="true" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", pointerEvents: "none", width: gw, aspectRatio: String(rvGuide), boxSizing: "border-box", border: "2px solid rgba(255,255,255,.9)", borderRadius: 6 }} />
+                    </>
+                  )}
+                </>
+              );
+            })()}
             {retakesLeft > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); handleRetake(session.shots.length - 1); }}
