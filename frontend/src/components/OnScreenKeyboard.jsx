@@ -6,14 +6,26 @@ const ALNUM = [
   ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
   ["Z", "X", "C", "V", "B", "N", "M", "⌫"],
 ];
+// Mode "extended" (kode voucher / diskon): huruf + spasi + simbol, karena kode dari kasir bisa berupa nama panjang dengan spasi & tanda baca.
+const EXT_ALPHA = [ALNUM[0], ALNUM[1], ALNUM[2], ["#+=", "Z", "X", "C", "V", "B", "N", "M", "␣", "⌫"]];
+const EXT_SYMBOL = [
+  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+  ["-", "_", ".", ",", "/", "&", "'", "(", ")", "+"],
+  [":", ";", "!", "?", "@", "#", "%", "*", "="],
+  ["ABC", ".", ",", "-", "_", "/", "&", "␣", "⌫"],
+];
 const NUMERIC = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["C", "0", "⌫"]];
 
 /** Keyboard layar untuk layar sentuh (kode voucher & PIN). Mengubah `value` lewat onChange(string baru). */
-export default function OnScreenKeyboard({ value, onChange, maxLength = 20, numeric = false, light = false, scaled = false, keyW = 88, keyH = 58, keyGap = 10, keyFs = 28, keyR = 14, className = "" }) {
+export default function OnScreenKeyboard({ value, onChange, maxLength = 20, numeric = false, extended = false, light = false, scaled = false, keyW = 88, keyH = 58, keyGap = 10, keyFs = 28, keyR = 14, className = "" }) {
   // scaled = ukuran tombol mengikuti satuan desain --u (dipakai layar input voucher)
   const S = (n) => `calc(var(--u) * ${n})`;
-  const rows = numeric ? NUMERIC : ALNUM;
+  const [sym, setSym] = React.useState(false);
+  const rows = numeric ? NUMERIC : extended ? (sym ? EXT_SYMBOL : EXT_ALPHA) : ALNUM;
   function press(k) {
+    if (k === "#+=") return setSym(true);
+    if (k === "ABC") return setSym(false);
+    if (k === "␣") k = " ";
     if (k === "⌫") return onChange(value.slice(0, -1));
     if (k === "C") return onChange("");
     if (value.length < maxLength) onChange(value + k);

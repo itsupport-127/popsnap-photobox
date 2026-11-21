@@ -7,7 +7,7 @@ import useCountdown from "../hooks/useCountdown";
 import { createQrisPayment, checkPaymentStatus, validateVoucher, quoteDiscount } from "../services/paymentService";
 import { getPublicSettings } from "../services/settingsService";
 import OnScreenKeyboard from "../components/OnScreenKeyboard";
-import useCodeEntry, { extractCode } from "../hooks/useCodeEntry";
+import useCodeEntry, { extractCode, CODE_MAX } from "../hooks/useCodeEntry";
 import StepBadge from "../components/StepBadge";
 import StripNotice from "../components/StripNotice";
 import TemplateDecor from "../components/TemplateDecor";
@@ -149,7 +149,7 @@ export default function PaymentScreen({ session, dispatch }) {
   useCodeEntry({
     active: session.paymentMethod === "voucher" && session.paymentStatus !== "expired",
     setValue: (fn) => { setVoucherInput(fn); setVoucherError(null); },
-    maxLength: 12,
+    maxLength: CODE_MAX,
     onSubmit: () => handleVoucherSubmit(),
     inputRef: voucherInputRef,
   });
@@ -161,7 +161,7 @@ export default function PaymentScreen({ session, dispatch }) {
     try {
       // Di aplikasi desktop (.exe) baca lewat proses utama; navigator.clipboard hanya cadangan (browser biasa)
       const raw = window.electronAPI?.kiosk?.readClipboard ? await window.electronAPI.kiosk.readClipboard() : await navigator.clipboard.readText();
-      const code = extractCode(raw, 12);
+      const code = extractCode(raw, CODE_MAX);
       if (!code) return setPasteMsg("Clipboard kosong.");
       setVoucherInput(code);
       setVoucherError(null);
@@ -429,7 +429,7 @@ function PaymentVoucher({ qrisDown, value, onChange, error, onSubmit, onBack, re
           <button onClick={onPaste} className="pay-mini" style={{ left: U(pasteLeft), top: U(V.paste.top), width: U(141), height: U(38), fontSize: U(22) }}>📋 Tempel</button>
           {showWinKb && <button onClick={() => window.electronAPI.kiosk.showTouchKeyboard()} className="pay-mini" style={{ left: U(pasteLeft + 161), top: U(V.kbBtn.top), width: U(180), height: U(38), fontSize: U(22) }}>⌨ Keyboard</button>}
           {(error || pasteMsg) && <p className="pay-error" style={{ left: U(V.err.left), width: U(V.err.width), top: U(V.err.top), fontSize: U(26) }}>{error || pasteMsg}</p>}
-          {useKeyboard && <div style={{ left: U(V.kb.left), top: U(V.kb.top), width: U(V.kb.width) }}><OnScreenKeyboard scaled {...V.kbSize} value={value} maxLength={12} onChange={onChange} /></div>}
+          {useKeyboard && <div style={{ left: U(V.kb.left), top: U(V.kb.top), width: U(V.kb.width) }}><OnScreenKeyboard scaled extended {...V.kbSize} value={value} maxLength={CODE_MAX} onChange={onChange} /></div>}
         </>
       }
     >
@@ -438,7 +438,7 @@ function PaymentVoucher({ qrisDown, value, onChange, error, onSubmit, onBack, re
           ref={inputRef}
           type="text"
           aria-label="Kode voucher"
-          maxLength={12}
+          maxLength={CODE_MAX}
           autoFocus={!useKeyboard}
           readOnly={useKeyboard}
           inputMode={useKeyboard ? "none" : undefined}

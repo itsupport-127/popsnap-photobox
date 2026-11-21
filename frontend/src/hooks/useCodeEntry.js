@@ -17,14 +17,17 @@ import { useEffect, useRef } from "react";
  * Ambil kode dari teks tempelan. Tahan terhadap teks di sekelilingnya (spasi, baris baru, "Kode: ABCD1234").
  * Prioritas: token 8 karakter (panjang kode voucher), lalu token terpanjang yang masih muat, lalu gabungan semuanya.
  */
-export function extractCode(text, maxLength = 12) {
+export const CODE_MAX = 40; // kode voucher / diskon dari kasir boleh panjang, berspasi, dan bertanda baca
+export function extractCode(text, maxLength = CODE_MAX) {
+  const oneLine = String(text ?? "").trim().replace(/\s+/g, " ");
+  if (oneLine && oneLine.length <= maxLength && !/\n/.test(String(text).trim())) return oneLine.toUpperCase(); // satu baris: pakai apa adanya (spasi & simbol ikut)
   const tokens = String(text ?? "").match(/[A-Za-z0-9]+/g) ?? [];
   if (!tokens.length) return "";
   const pick = tokens.find((t) => t.length === 8) ?? [...tokens].filter((t) => t.length <= maxLength).sort((a, b) => b.length - a.length)[0] ?? tokens.join("");
   return pick.toUpperCase().slice(0, maxLength);
 }
 
-export default function useCodeEntry({ active, setValue, maxLength = 12, onSubmit, inputRef }) {
+export default function useCodeEntry({ active, setValue, maxLength = CODE_MAX, onSubmit, inputRef }) {
   const latest = useRef({});
   latest.current = { setValue, maxLength, onSubmit };
 
@@ -44,7 +47,7 @@ export default function useCodeEntry({ active, setValue, maxLength = 12, onSubmi
         if (focused) return;
         e.preventDefault();
         setValue((v) => v.slice(0, -1));
-      } else if (/^[a-zA-Z0-9]$/.test(e.key)) {
+      } else if (e.key.length === 1) { // semua karakter yang bisa dicetak: huruf, angka, spasi, simbol
         if (focused) return;
         e.preventDefault();
         setValue((v) => (v.length < maxLength ? v + e.key.toUpperCase() : v));

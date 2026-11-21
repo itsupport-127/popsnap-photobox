@@ -1493,6 +1493,9 @@ function priceFor(templateId, mode) {
  * "Bayar dulu" (urutan langkah: bayar sebelum pilih template): hanya boleh kalau SEMUA template yang tampil di booth harganya sama
  * (yang tampil = favorit, atau satu template saja bila Tampilan > Template diset "satu template"). Harga bersama itu = harga per sesi.
  */
+/** Kode voucher/diskon dari tamu: huruf besar, spasi ganda dirapikan, maksimal 40 karakter (boleh berspasi & simbol). */
+const normCode = (v) => String(v ?? "").trim().replace(/\s+/g, " ").toUpperCase().slice(0, 40);
+
 function flatPriceInfo() {
   const sc = settingsStore.load().display?.startScreen || {};
   let rows = db.prepare("SELECT price FROM templates WHERE favorite = 1").all();
@@ -1527,7 +1530,7 @@ const discountView = (q) => ({ enabled: q.enabled !== false, unreachable: !!q.un
   auto: q.auto ? { name: q.auto.name, discount: q.auto.discount } : null, code: q.code ? { code: q.code.code, name: q.code.name, discount: q.code.discount } : null });
 app.post("/api/discount/quote", async (req, res) => {
   discountFails = discountFails.filter((t) => Date.now() - t < 60000);
-  const code = String(req.body?.code ?? "").trim().toUpperCase().slice(0, 40);
+  const code = normCode(req.body?.code);
   if (code && discountFails.length >= 10) return res.status(429).json({ enabled: true, ok: false, error: "Terlalu banyak percobaan. Tunggu sebentar atau minta bantuan kasir." });
   const pay = await paymentState();
   if (!pay.methods.includes("qris")) return res.json({ enabled: false });
@@ -1561,7 +1564,7 @@ app.post("/api/voucher/validate", async (req, res) => {
   const pay = await paymentState();
   if (!pay.methods.includes("voucher")) return fail("Pembayaran voucher sedang tidak aktif.");
 
-  const code = String(req.body?.code ?? "").trim().toUpperCase();
+  const code = normCode(req.body?.code);
   const row = code ? db.prepare("SELECT * FROM vouchers WHERE code = ?").get(code) : null;
   if (!row) return fail("Kode voucher tidak ditemukan.");
   const status = voucherStatus(row);
@@ -1946,7 +1949,7 @@ app.post("/api/payment/qris", async (req, res) => {
   }
   // Diskon kasir (promo otomatis + kode): dihitung ulang di sini, jadi tidak bisa dipalsukan dari layar. Add Print tidak diskon.
   let promo = null;
-  const wantCode = String(req.body?.discountCode ?? "").trim().toUpperCase().slice(0, 40);
+  const wantCode = normCode(req.body?.discountCode);
   if (!isPrint) {
     const dq = await discountFor(grossAmount, wantCode);
     if (dq.enabled && wantCode && (dq.unreachable || dq.ok === false)) {
