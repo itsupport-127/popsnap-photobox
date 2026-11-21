@@ -239,11 +239,12 @@ export default function EditorScreen({ session, dispatch }) {
                 <button key={i} type="button" onClick={() => onTileClick(i)} onPointerDown={(e) => startDrag(e, i, null)}
                   aria-label={used ? `Foto ${i + 1}, ada di bingkai posisi ${pos + 1}` : `Pilih foto ${i + 1}`}
                   style={{
-                    position: "relative", flex: "none", width: U(TILE.w), height: U(TILE.h), padding: 0, border: 0, borderRadius: U(8), overflow: "hidden", background: "#ddd",
+                    position: "relative", flex: "none", width: U(TILE.w), height: "auto", padding: 0, border: 0, borderRadius: U(8), overflow: "hidden", background: "#ddd", display: "block", lineHeight: 0,
                     touchAction: "none", opacity: drag?.shot === i ? 0.4 : dim ? 0.45 : 1,
                     outline: selectedSlot === pos && used ? `${U(5)} solid #E02843` : used ? `${U(4)} solid #FDB533` : "none", outlineOffset: U(-4),
                   }}>
-                  <img src={shot} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none", transform: mirror ? "scaleX(-1)" : undefined }} />
+                  {/* Foto ditampilkan UTUH (tidak dipotong): tinggi mengikuti rasio asli hasil jepretan, sesuai pengaturan kamera/bingkai yang dipakai */}
+                  <img src={shot} alt="" draggable={false} style={{ display: "block", width: "100%", height: "auto", aspectRatio: `auto ${TILE.w} / ${TILE.h}`, pointerEvents: "none", transform: mirror ? "scaleX(-1)" : undefined }} />
                   {used && (
                     <span style={{ position: "absolute", top: U(8), left: U(8), width: U(40), height: U(40), borderRadius: "50%", background: "#FDB533", border: "1px solid #000", color: "#3A2E00", fontWeight: 800, fontSize: U(24), display: "flex", alignItems: "center", justifyContent: "center" }}>{pos + 1}</span>
                   )}
@@ -354,7 +355,7 @@ export default function EditorScreen({ session, dispatch }) {
       {/* Foto yang sedang diseret */}
       {drag && (
         <img src={session.shots[drag.shot]} alt="" draggable={false}
-          style={{ position: "fixed", left: drag.x, top: drag.y, width: 110, height: 73, objectFit: "cover", transform: `translate(-50%, -50%)${mirror ? " scaleX(-1)" : ""}`, borderRadius: 8, border: "3px solid #E02843", boxShadow: "0 6px 18px rgba(0,0,0,.35)", pointerEvents: "none", zIndex: 60, opacity: 0.92 }} />
+          style={{ position: "fixed", left: drag.x, top: drag.y, width: 110, height: "auto", maxHeight: 170, aspectRatio: "auto 3 / 2", objectFit: "contain", transform: `translate(-50%, -50%)${mirror ? " scaleX(-1)" : ""}`, borderRadius: 8, border: "3px solid #E02843", boxShadow: "0 6px 18px rgba(0,0,0,.35)", pointerEvents: "none", zIndex: 60, opacity: 0.92 }} />
       )}
     </div>
   );
