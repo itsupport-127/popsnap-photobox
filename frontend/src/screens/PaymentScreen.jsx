@@ -2,6 +2,7 @@ import useShape from "../hooks/useShape";
 import React, { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import appConfig from "../config/appConfig";
+import { flatPrice, previousStep } from "../state/sessionMachine";
 import useCountdown from "../hooks/useCountdown";
 import { createQrisPayment, checkPaymentStatus, validateVoucher, quoteDiscount } from "../services/paymentService";
 import { getPublicSettings } from "../services/settingsService";
@@ -22,6 +23,7 @@ import logo from "../assets/logo-popsnap.png";
  *          ke database lokal (bisa offline).
  */
 export default function PaymentScreen({ session, dispatch }) {
+  const flat = session.mode === "photo" && !session.selectedTemplate; // bayar dulu: template belum dipilih, harga tetap per sesi
   const [voucherInput, setVoucherInput] = useState("");
   const [voucherError, setVoucherError] = useState(null);
   const [qrisData, setQrisData] = useState(null);
@@ -48,7 +50,7 @@ export default function PaymentScreen({ session, dispatch }) {
   useEffect(() => {
     if (!discountOn || session.mode !== "photo" && !session.price) return;
     let cancelled = false;
-    quoteDiscount({ templateId: session.selectedTemplate?.id, mode: session.mode }).then((q) => { if (!cancelled && q?.enabled && q.ok && q.discount > 0) setQuote(q); });
+    quoteDiscount({ templateId: session.selectedTemplate?.id, mode: session.mode, flat }).then((q) => { if (!cancelled && q?.enabled && q.ok && q.discount > 0) setQuote(q); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [discountOn]);
@@ -67,7 +69,8 @@ export default function PaymentScreen({ session, dispatch }) {
   }, [methods, session.paymentMethod]);
 
   // Mode foto: kembali ke pilih template (kecuali template sudah ditentukan admin). Mode lain: batalkan sesi.
-  const goBack = () => dispatch({ type: session.mode === "photo" && !session.autoTemplate ? "BACK_TO_TEMPLATE_SELECT" : "CANCEL_SESSION" });
+  const backToTemplates = previousStep(session, "payment") === "template"; // bayar dulu / langkah lain di depan: Kembali = batalkan sesi
+  const goBack = () => dispatch({ type: backToTemplates ? "BACK_TO_TEMPLATE_SELECT" : "CANCEL_SESSION" });
   // Layar "Waktu pembayaran habis" tidak boleh menunggu selamanya kalau tamu sudah pergi: kembali otomatis setelah 30 detik
   useEffect(() => {
     if (session.paymentStatus !== "expired") return;
@@ -79,7 +82,7 @@ export default function PaymentScreen({ session, dispatch }) {
   const kbMode = appConfig.settings?.general?.virtualKeyboard ?? "off"; // off | builtin | windows
   const useKeyboard = kbMode === "builtin";
   const voucherInputRef = useRef(null);
-  const price = session.mode === "photo" ? session.selectedTemplate?.price : session.price;
+  const price = session.mode === "photo" ? (session.selectedTemplate ? session.selectedTemplate.price : flatPrice()) : session.price;
   const MODE_NAME = { photo: "Foto", gif: "GIF", boomerang: "Boomerang", video: "Video" };
 
   // QRIS lunas: tampilkan "Payment successful" sebentar sebelum lanjut; hitung mundur dihentikan supaya tidak kedaluwarsa di jeda ini
@@ -108,7 +111,7 @@ export default function PaymentScreen({ session, dispatch }) {
     setQrisError(null);
     setQrisData(null);
     try {
-      const payment = await createQrisPayment({ templateId: session.selectedTemplate?.id, mode: session.mode, discountCode: discountCodeRef.current });
+      const payment = await createQrisPayment({ templateId: session.selectedTemplate?.id, flat, mode: session.mode, discountCode: discountCodeRef.current });
       setQrisData(payment);
       pollPayment(payment.orderId);
     } catch (err) {
@@ -174,14 +177,14 @@ export default function PaymentScreen({ session, dispatch }) {
 
   async function handleVoucherSubmit() {
     if (!voucherInput.trim()) return setVoucherError("Masukkan kode voucher dulu.");
-    const result = await validateVoucher(voucherInput, { templateId: session.selectedTemplate?.id, mode: session.mode });
+    const result = await validateVoucher(voucherInput, { templateId: session.selectedTemplate?.id, flat, mode: session.mode });
     if (result.valid) {
       dispatch({ type: "PAYMENT_SUCCESS", payload: { sessionId: result.orderNo || `VCH-${voucherInput}` } });
       return;
     }
     // Bukan voucher bayar-di-kasir: coba sebagai KODE DISKON kasir (hanya kalau diskon dinyalakan & kasir terjangkau)
     if (discountOn && /tidak ditemukan|tidak aktif/i.test(result.reason || "")) {
-      const q = await quoteDiscount({ templateId: session.selectedTemplate?.id, mode: session.mode, code: voucherInput.trim() });
+      const q = await quoteDiscount({ templateId: session.selectedTemplate?.id, flat, mode: session.mode, code: voucherInput.trim() });
       if (q?.enabled && q.ok && q.code) {
         setQuote(q);
         return handleSelectQris(voucherInput.trim().toUpperCase()); // lanjut ke QR dengan harga setelah diskon
@@ -196,7 +199,7 @@ export default function PaymentScreen({ session, dispatch }) {
   if (methods?.[0] === "free") return null; // tanpa pembayaran: tidak ada layar bayar (langsung diteruskan oleh efek di atas)
 
   if (session.paymentStatus === "expired") {
-    const toTemplates = session.mode === "photo" && !session.autoTemplate;
+    const toTemplates = backToTemplates;
     return (
       <StripNotice
         title="Waktu pembayaran habis"

@@ -4,6 +4,7 @@
 // timer sesi, dan API key buat integrasi aplikasi kasir.
 // ==========================================================
 const crypto = require("crypto");
+const FLOW_STEPS = ["disclaimer", "template", "payment", "consent", "reminder"];
 const db = require("./db");
 
 const DEFAULTS = {
@@ -24,6 +25,9 @@ const DEFAULTS = {
     virtualKeyboard: "builtin", // off = keyboard fisik / bawaan perangkat | builtin = keyboard layar POPSNAP | windows = keyboard sentuh Windows (dibuka otomatis di aplikasi desktop)
     security: { pinHash: "", pinSalt: "", pinSeeded: false, pinDefault: false }, // PIN keluar dari layar penuh; disimpan ter-hash
     // Izin sosmed: tamu ditanya setelah bayar (sebelum pengumuman). Jawaban menandai folder sesi (BOLEH / TIDAK) untuk content creator.
+    // Urutan langkah setelah tamu menekan Start. Boleh disusun bebas (lihat FLOW_STEPS). "payment" sebelum "template" = bayar dulu
+    // (hanya berlaku kalau semua template yang tampil harganya sama; kalau tidak, bayar tetap setelah pilih template).
+    flow: { steps: ["disclaimer", "template", "payment", "consent", "reminder"] },
     consent: { enabled: false, title: "IZIN FOTO", text: "Hai kak! Fotonya boleh kami bagikan di sosmed atau dipajang di mading toko? Pilih yang kakak nyaman ya.", seconds: 20 },
     disclaimer: {
       enabled: false,
@@ -294,6 +298,11 @@ function update(patch) {
       header: str(dis.header, 120, cg.disclaimer.header),
       text: str(dis.text, 3000, cg.disclaimer.text),
     };
+    {
+      const seen = new Set();
+      const given = (Array.isArray(obj(g.flow).steps) ? obj(g.flow).steps : []).filter((x) => FLOW_STEPS.includes(x) && !seen.has(x) && seen.add(x));
+      ng.flow = { steps: [...given, ...cg.flow.steps.filter((x) => !seen.has(x))] }; // langkah yang hilang ditambahkan di belakang: tidak pernah ada langkah terlewat
+    }
     const cs = obj(g.consent);
     ng.consent = { enabled: bool(cs.enabled, cg.consent.enabled), title: str(cs.title, 40, cg.consent.title) || cg.consent.title, text: str(cs.text, 200, cg.consent.text) || cg.consent.text, seconds: num(cs.seconds, 5, 120, cg.consent.seconds) };
     const ex = obj(g.export);

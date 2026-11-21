@@ -1168,6 +1168,7 @@ app.get("/api/settings/public", async (req, res) => {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
+  kiosk.flow = { steps: kiosk.general.flow.steps, payFirst: flatPriceInfo() };
   res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, free: pay.mode === "none", methods: pay.methods, online: pay.online, simulate: !!pay.simulate, testPayment: pay.mode !== "voucher" && pay.mode !== "none" && !!pay.qrisConfigured && !pay.simulate && isTestPayment(), qrisDown: pay.mode !== "voucher" && pay.mode !== "none" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),
     discount: cloud.discountEnabled() && pay.methods.includes("qris") } });
 });
@@ -1488,6 +1489,24 @@ function priceFor(templateId, mode) {
   return t?.price || 0;
 }
 
+/**
+ * "Bayar dulu" (urutan langkah: bayar sebelum pilih template): hanya boleh kalau SEMUA template yang tampil di booth harganya sama
+ * (yang tampil = favorit, atau satu template saja bila Tampilan > Template diset "satu template"). Harga bersama itu = harga per sesi.
+ */
+function flatPriceInfo() {
+  const sc = settingsStore.load().display?.startScreen || {};
+  let rows = db.prepare("SELECT price FROM templates WHERE favorite = 1").all();
+  if (sc.templateChoice === "single") {
+    const one = db.prepare("SELECT price FROM templates WHERE id = ?").get(sc.singleTemplateId);
+    if (one) rows = [one];
+  }
+  const prices = [...new Set(rows.map((r) => r.price || 0))];
+  if (!rows.length) return { ok: false, price: null, reason: "Belum ada template yang tampil di booth." };
+  if (prices.length > 1) return { ok: false, price: null, reason: `Harga template yang tampil berbeda-beda (${prices.sort((a, b) => a - b).map((p) => "Rp " + p.toLocaleString("id-ID")).join(", ")}).` };
+  if (!(prices[0] > 0)) return { ok: false, price: null, reason: "Template yang tampil gratis / belum diberi harga." };
+  return { ok: true, price: prices[0], reason: null };
+}
+
 // ---------- DISKON KASIR (promo otomatis + kode diskon dari menu Promo kasir) ----------
 // Hanya jalan kalau internet & kasir terjangkau (QRIS aktif) dan admin menyalakannya. Harga SELALU dihitung kasir, bukan browser.
 // Kasir mati/lambat: tanpa kode -> harga normal; dengan kode -> ditolak dengan pesan jelas (jangan diam-diam menagih penuh).
@@ -1513,7 +1532,8 @@ app.post("/api/discount/quote", async (req, res) => {
   const pay = await paymentState();
   if (!pay.methods.includes("qris")) return res.json({ enabled: false });
   const mode = ["gif", "boomerang", "video"].includes(req.body?.mode) ? req.body.mode : null;
-  const gross = mode ? settingsStore.load().general.modes[mode]?.price || 0 : priceFor(typeof req.body?.templateId === "string" ? req.body.templateId : null, "photo");
+  const flat = req.body?.flat === true && !mode;
+  const gross = mode ? settingsStore.load().general.modes[mode]?.price || 0 : flat ? flatPriceInfo().price || 0 : priceFor(typeof req.body?.templateId === "string" ? req.body.templateId : null, "photo");
   if (!(gross > 0)) return res.json({ enabled: false });
   const q = await discountFor(gross, code);
   if (code && q.enabled && (q.ok === false || q.unreachable)) discountFails.push(Date.now());
@@ -1561,7 +1581,8 @@ app.post("/api/voucher/validate", async (req, res) => {
   try {
     const tplId = typeof req.body?.templateId === "string" ? req.body.templateId : null;
     const mode = ["photo", "gif", "boomerang", "video"].includes(req.body?.mode) ? req.body.mode : "photo";
-    const amount = settingsStore.load().payment.cloud.countVoucherRevenue ? priceFor(tplId, mode) : 0;
+    const flatP = req.body?.flat === true && mode === "photo" && !tplId ? flatPriceInfo().price || 0 : 0;
+    const amount = settingsStore.load().payment.cloud.countVoucherRevenue ? flatP || priceFor(tplId, mode) : 0;
     orderNo = cloud.create({ method: "voucher", mode, templateId: tplId, amount, status: "paid", voucherCode: code, voucherRef: row.reference });
   } catch (err) { console.warn("[kasir-sync] Gagal mencatat transaksi voucher:", err.message); }
   res.json({ valid: true, orderNo });
@@ -1887,7 +1908,8 @@ app.post("/api/payment/qris", async (req, res) => {
   const { templateId, mode } = req.body ?? {};
   const isPrint = req.body?.kind === "print"; // Add Print: bayar cetakan tambahan di akhir sesi
   const modeKey = ["gif", "boomerang", "video"].includes(mode) ? mode : null;
-  if (!isPrint && !modeKey && !templateId) return res.status(400).json({ error: "templateId wajib diisi." });
+  const flat = req.body?.flat === true && !isPrint && !modeKey && !templateId; // bayar dulu, template dipilih sesudahnya
+  if (!isPrint && !modeKey && !templateId && !flat) return res.status(400).json({ error: "templateId wajib diisi." });
 
   // Tolak kalau QRIS tidak aktif / internet mati — mencegah "gratis" lewat simulasi tak sengaja
   const pay = await paymentState();
@@ -1909,6 +1931,10 @@ app.post("/api/payment/qris", async (req, res) => {
     if (!cfg.enabled) return res.status(403).json({ error: "Mode ini tidak aktif." });
     grossAmount = cfg.price || 0;
     if (grossAmount <= 0) return res.status(400).json({ error: "Mode ini gratis / belum diberi harga." });
+  } else if (flat) {
+    const fp = flatPriceInfo();
+    if (!fp.ok) return res.status(409).json({ error: `Alur "bayar dulu" tidak bisa dipakai: ${fp.reason} Samakan harga template atau ubah urutan langkah.` });
+    grossAmount = fp.price;
   } else {
     const template = db.prepare("SELECT * FROM templates WHERE id = ?").get(templateId);
     if (!template) return res.status(404).json({ error: "Template tidak ditemukan" });

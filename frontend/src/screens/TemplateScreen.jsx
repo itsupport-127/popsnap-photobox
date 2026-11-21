@@ -142,7 +142,7 @@ function TemplateList({ session, dispatch, templates, category }) {
 
         <button onClick={() => dispatch({ type: "BACK_TO_CATEGORY" })} className="strip-btn" style={{ left: U(L.back.left), top: U(L.back.top), width: U(192), height: U(63), fontSize: U(30) }}>BACK</button>
         {selectedTemplate && (
-          <button onClick={() => dispatch({ type: "GO_TO_PAYMENT" })} className="strip-btn strip-btn--next" style={{ left: U(L.next.left), top: U(L.next.top), width: U(192), height: U(63), fontSize: U(30) }}>NEXT →</button>
+          <button onClick={() => dispatch({ type: "TEMPLATE_DONE" })} className="strip-btn strip-btn--next" style={{ left: U(L.next.left), top: U(L.next.top), width: U(192), height: U(63), fontSize: U(30) }}>NEXT →</button>
         )}
       </div>
     </div>

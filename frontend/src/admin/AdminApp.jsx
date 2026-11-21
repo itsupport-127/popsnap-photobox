@@ -19,6 +19,7 @@ import FiltersPage from "./FiltersPage";
 import ReadyCheckPage from "./ReadyCheckPage";
 import SocialPage from "./SocialPage";
 import RemotePage from "./RemotePage";
+import FlowPage from "./FlowPage";
 import { Icon } from "./editorKit";
 import { StatusDot } from "./ui";
 
@@ -38,6 +39,7 @@ const NAV = [
   { to: "/admin/settings", icon: "gear", label: "Pengaturan", perm: ["settings.manage"] },
   { to: "/admin/template", icon: "image", label: "Template", perm: ["template.manage"] },
   { to: "/admin/stickers", icon: "sticker", label: "Stiker", perm: ["template.manage"] },
+  { to: "/admin/flow", icon: "refresh", label: "Alur", perm: ["settings.manage"] },
   { to: "/admin/filters", icon: "eye", label: "Filter", perm: ["settings.manage"] },
   { to: "/admin/check", icon: "wrench", label: "Cek Siap Buka", perm: ["settings.manage"] },
   { to: "/admin/social", icon: "star", label: "Sosmed", perm: ["settings.manage"] },
@@ -136,6 +138,7 @@ export default function AdminApp({ user: initialUser, onLogout }) {
                   <Route path="voucher" element={guard(<VoucherPage />, "voucher.manage")} />
                   <Route path="settings" element={guard(<SettingsPage />, "settings.manage")} />
                   <Route path="tools/camera" element={guard(<CameraSettingsPage />, "settings.manage")} />
+                  <Route path="flow" element={guard(<FlowPage />, "settings.manage")} />
                   <Route path="remote" element={guard(<RemotePage />, "settings.manage")} />
                   <Route path="tools" element={guard(<ToolsPage />, "tools.maintenance")} />
                   <Route path="users" element={guard(<UsersPage user={user} />, "users.manage")} />
