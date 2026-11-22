@@ -980,7 +980,7 @@ app.post("/api/templates/:id/audit", requirePerm("template.manage"), (req, res) 
 // (sisa dari template yang pernah dihapus). Aman dijalankan kapan saja karena
 // cuma hapus file yang beneran orphan — tapi disarankan pas gak ada sesi
 // konsumen yang lagi jalan (misal tutup toko), buat jaga-jaga.
-app.post("/api/templates/cleanup-orphaned-files", requirePerm("tools.maintenance"), (req, res) => {
+function cleanupOrphanedFiles() {
   const allTemplates = db.prepare("SELECT layers FROM templates").all();
   const usedFilenames = new Set();
   for (const row of allTemplates) {
@@ -1042,8 +1042,12 @@ app.post("/api/templates/cleanup-orphaned-files", requirePerm("tools.maintenance
     } catch (err) { skipped++; console.warn(`[cleanup-orphan] lewati ${filename}: ${err.code || err.message}`); }
   }
 
-  logActivity(req.user, "files.cleanup", "file tidak terpakai", { dihapus: deletedCount }, req);
-  res.json({ ok: true, deletedCount, skipped });
+  return { deletedCount, skipped };
+}
+app.post("/api/templates/cleanup-orphaned-files", requirePerm("tools.maintenance"), (req, res) => {
+  const r = cleanupOrphanedFiles();
+  logActivity(req.user, "files.cleanup", "file tidak terpakai", { dihapus: r.deletedCount }, req);
+  res.json({ ok: true, deletedCount: r.deletedCount, skipped: r.skipped });
 });
 
 // ---------- PENYIMPANAN: ukuran folder + bersihkan arsip lama ----------
@@ -1063,8 +1067,8 @@ function dirStats(dir) {
 }
 const DATE_DIR_RE = /^\d{4}-\d{2}-\d{2}$/;
 let storageCache = { at: 0, v: null };
-app.get("/api/storage", requirePerm("tools.maintenance"), (req, res) => {
-  if (!storageCache.v || Date.now() - storageCache.at > 20000 || req.query.fresh === "1") {
+function getStorage(fresh) {
+  if (!storageCache.v || Date.now() - storageCache.at > 20000 || fresh) {
     const out = outputDir();
     const days = [];
     try {
@@ -1086,13 +1090,14 @@ app.get("/api/storage", requirePerm("tools.maintenance"), (req, res) => {
       retentionDays: config.fileRetentionDays,
     } };
   }
-  res.json(storageCache.v);
-});
+  return storageCache.v;
+}
+app.get("/api/storage", requirePerm("tools.maintenance"), (req, res) => res.json(getStorage(req.query.fresh === "1")));
 
 // Hapus folder tanggal di arsip yang lebih tua dari N hari. Hanya folder bernama YYYY-MM-DD; folder lain tidak disentuh.
-app.post("/api/storage/archive-cleanup", requirePerm("tools.maintenance"), (req, res) => {
-  const days = Math.floor(Number(req.body?.olderThanDays));
-  if (!Number.isFinite(days) || days < 7 || days > 3650) return res.status(400).json({ error: "Isi batas hari antara 7 dan 3650." });
+function archiveCleanup(daysIn) {
+  const days = Math.floor(Number(daysIn));
+  if (!Number.isFinite(days) || days < 7 || days > 3650) return { status: 400, error: "Isi batas hari antara 7 dan 3650." };
   const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - days);
   const cutoff = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, "0")}-${String(cut.getDate()).padStart(2, "0")}`;
   const out = outputDir();
@@ -1104,10 +1109,15 @@ app.post("/api/storage/archive-cleanup", requirePerm("tools.maintenance"), (req,
       const sz = dirStats(dir).bytes;
       try { fs.rmSync(dir, { recursive: true, force: true }); removedDays++; freed += sz; } catch (err) { failed++; console.warn(`[arsip] gagal hapus ${d}: ${err.code || err.message}`); }
     }
-  } catch (err) { return res.status(500).json({ error: `Folder arsip tidak bisa dibaca: ${err.code || err.message}` }); }
+  } catch (err) { return { status: 500, error: `Folder arsip tidak bisa dibaca: ${err.code || err.message}` }; }
   storageCache = { at: 0, v: null }; diskCache = { at: 0, v: null };
-  logActivity(req.user, "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: days, hariDihapus: removedDays, bytes: freed }, req);
-  res.json({ ok: true, removedDays, freedBytes: freed, failed, cutoff });
+  return { days, removedDays, freedBytes: freed, failed, cutoff };
+}
+app.post("/api/storage/archive-cleanup", requirePerm("tools.maintenance"), (req, res) => {
+  const r = archiveCleanup(req.body?.olderThanDays);
+  if (r.error) return res.status(r.status).json({ error: r.error });
+  logActivity(req.user, "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: r.days, hariDihapus: r.removedDays, bytes: r.freedBytes }, req);
+  res.json({ ok: true, removedDays: r.removedDays, freedBytes: r.freedBytes, failed: r.failed, cutoff: r.cutoff });
 });
 
 function formatTemplate(row) {
@@ -1900,7 +1910,7 @@ app.post("/api/session/clip", express.raw({ type: () => true, limit: "60mb" }), 
 });
 
 // Halaman unduh /s/<token> (+ files.json, all.zip)
-require("./cameraBridge").mount(app, { settingsStore });
+require("./cameraBridge").mount(app, { settingsStore, remoteTools: (t, f) => require("./remoteAgent").registerTool(t, f) });
 require("./sharePage").mount(app, { db, backendDir: config.dataDir, getStoreName: () => settingsStore.load().event?.name || db.prepare("SELECT store_name FROM store_settings WHERE id = 1").get()?.store_name || "POPSNAP" });
 
 // ---------- PAYMENT (QRIS via Midtrans) ----------
@@ -2097,6 +2107,19 @@ cloud.start();
 // Remote Booth (opsional, mati kalau belum diatur): sambung KELUAR ke server popsnap-remote. Lihat remoteAgent.js.
 const remoteAgent = require("./remoteAgent");
 remoteAgent.mount(app, requirePerm);
+// Alat yang boleh dipanggil dari Remote Booth (daftar tetap, dicek lagi oleh remoteSpec.validateTool)
+remoteAgent.registerTool("tools.storage", (p) => ({ ok: true, message: "Penyimpanan dibaca", data: getStorage(!!p.fresh) }));
+remoteAgent.registerTool("tools.archive_cleanup", (p) => {
+  const r = archiveCleanup(p.days);
+  if (r.error) return { ok: false, error: r.error };
+  logActivity("remote", "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: r.days, hariDihapus: r.removedDays, bytes: r.freedBytes });
+  return { ok: true, message: `${r.removedDays} folder tanggal dihapus (${(r.freedBytes / 1048576).toFixed(1)} MB)` + (r.failed ? `, ${r.failed} gagal` : ""), data: r };
+});
+remoteAgent.registerTool("tools.cleanup_orphans", () => {
+  const r = cleanupOrphanedFiles();
+  logActivity("remote", "files.cleanup", "file tidak terpakai", { dihapus: r.deletedCount });
+  return { ok: true, message: `${r.deletedCount} file tidak terpakai dihapus` + (r.skipped ? `, ${r.skipped} dilewati` : ""), data: r };
+});
 remoteAgent.start();
 
 // ---------- POPSNAP Galeri: unggah hasil sesi ke cloud + halaman QR (Pengaturan > Pembayaran) ----------

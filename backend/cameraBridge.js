@@ -59,7 +59,7 @@ function httpGet(urlStr, timeout) {
   });
 }
 
-function mount(app, { settingsStore }) {
+function mount(app, { settingsStore, remoteTools }) {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const cfg = () => {
     const d = settingsStore.load().camera?.dslr ?? {};
@@ -390,6 +390,22 @@ function mount(app, { settingsStore }) {
       res.json({ ok: true, info: r.info });
     } catch (e) { res.status(502).json({ error: e.message }); }
   });
+
+  // Alat Remote Booth: status kamera + baca/ubah ISO, shutter, aperture, WB (hanya Canon/Nikon langsung)
+  if (remoteTools) {
+    remoteTools("camera.status", () => { const c = cfg(); return { ok: true, message: "Kamera dibaca", data: { driver: c.driver, model: c.model || null, live: !!lvOn, capturing: capturing > 0 } }; });
+    remoteTools("camera.exposure.get", async () => {
+      const n = nativeFor(); if (n.err) return { ok: false, error: n.err };
+      const info = await n.b.camInfo(n.c.model); if (info?.error) return { ok: false, error: info.error };
+      return { ok: true, message: "Setelan kamera dibaca", data: info };
+    });
+    remoteTools("camera.exposure.set", async (p) => {
+      const n = nativeFor(); if (n.err) return { ok: false, error: n.err };
+      const r = await n.b.camSet(n.c.model, p.prop, p.value);
+      if (r.ok && n.b.expApplied) delete n.b.expApplied[p.prop];
+      return r.ok ? { ok: true, message: "Setelan kamera diubah", data: r.info || null } : { ok: false, error: r.error || "Ditolak kamera" };
+    });
+  }
 
   let busy = Promise.resolve();
   app.post("/api/camera/dslr/capture", (req, res) => {

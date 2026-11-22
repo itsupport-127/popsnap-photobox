@@ -19,6 +19,8 @@ const FRONT_ALIVE_MS = 25000;
 const APP_VERSION = (() => { try { return require("./package.json").version; } catch { return "1"; } })();
 
 const st = { running: false, connected: false, lastOkAt: null, lastError: null, boothName: null, uiAt: 0, ui: { screen: null, shots: null }, lastTxSig: "", lastTxFullAt: 0, fails: 0, genId: 0 };
+const tools = {};            // alat yang didaftarkan modul lain (storage, kamera, dst)
+function registerTool(type, fn) { tools[type] = fn; }
 const frontQueue = [];       // perintah untuk layar kiosk
 const frontWaiters = [];     // long-poll dari layar kiosk
 
@@ -59,11 +61,14 @@ function today() {
   const r = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(amount),0) rev FROM tx_log WHERE status = 'paid' AND COALESCE(is_test,0) = 0 AND COALESCE(paid_at, created_at) >= ?").get(localDayStartIso());
   return { count: r.n, revenue: r.rev };
 }
+function diskBrief() {
+  try { const f = require("fs").statfsSync(require("./config").dataDir); const t = f.blocks * f.bsize; return { freeGB: Math.round((f.bavail * f.bsize) / 1e8) / 10, totalGB: Math.round(t / 1e8) / 10 }; } catch { return null; }
+}
 function info() {
   const s = settingsStore.load();
   const cam = { webcam: "Webcam", dslr: "DSLR (digiCamControl)", canon: "Canon (langsung)", nikon: "Nikon (langsung)" }[s.camera?.mode] || s.camera?.mode || "-";
   let pending = null; try { pending = cloud.status().pending; } catch { /* */ }
-  return { camera: cam, printer: s.printing?.enabled ? (s.printing.main?.name || "Printer bawaan") : "Cetak mati", paymentMode: s.payment?.mode, pendingSync: pending, uptimeMin: Math.round(process.uptime() / 60) };
+  return { camera: cam, printer: s.printing?.enabled ? (s.printing.main?.name || "Printer bawaan") : "Cetak mati", paymentMode: s.payment?.mode, pendingSync: pending, disk: diskBrief(), uptimeMin: Math.round(process.uptime() / 60) };
 }
 function txPayload() {
   let rows = []; try { rows = cloud.recent(60); } catch { /* */ }
@@ -146,7 +151,15 @@ async function handle(cmd) {
       logActivity("remote", "remote.settings", "booth", { paths: Object.keys(v.clean) });
       return { ok: true, applied, message: `${changed.length} pengaturan diterapkan` + (differ.length ? ` (disesuaikan booth: ${differ.join(", ")})` : "") };
     }
-    default: return { ok: false, error: "Perintah tidak dikenal." };
+    default: {
+      const fn = tools[cmd.type];
+      if (!fn || !spec.TOOL_TYPES.includes(cmd.type)) return { ok: false, error: "Perintah tidak dikenal." };
+      const v = spec.validateTool(cmd.type, cmd.payload);
+      if (!v.ok) return { ok: false, error: v.error };
+      logActivity("remote", "remote.tool", cmd.type, {});
+      const r = await fn(v.payload);
+      return r && typeof r === "object" ? r : { ok: false, error: "Alat tidak memberi hasil." };
+    }
   }
 }
 
@@ -170,7 +183,7 @@ async function pollLoop(gen) {
       const d = await http("/api/agent/poll", { timeout: 40000 });
       for (const cmd of d.commands || []) {
         let r; try { r = await handle(cmd); } catch (e) { r = { ok: false, error: e.message }; }
-        await http("/api/agent/ack", { method: "POST", body: { id: cmd.id, ok: !!r.ok, message: r.message, applied: r.applied, error: r.error } }).catch(() => {});
+        await http("/api/agent/ack", { method: "POST", body: { id: cmd.id, ok: !!r.ok, message: r.message, applied: r.applied, error: r.error, data: r.data } }).catch(() => {});
       }
       st.connected = true;
     } catch (e) { st.connected = false; st.lastError = e.name === "AbortError" ? "Server remote tidak menjawab" : e.message; await wait(e.status === 401 ? 15000 : 5000); }
@@ -231,4 +244,4 @@ function mount(app, requirePerm) {
   });
 }
 
-module.exports = { mount, start, stop, status: publicConfig, _handle: handle, _load: load, _save: save };
+module.exports = { registerTool, mount, start, stop, status: publicConfig, _handle: handle, _load: load, _save: save };
