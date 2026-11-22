@@ -11,7 +11,7 @@ const util = require("util");
 
 const KEEP_DAYS = 14;
 const MAX_FILE = 30 * 1024 * 1024;
-const MAX_OUT_CHARS = 300000; // batas isi yang dikirim ke Remote
+const MAX_OUT_CHARS = 240000; // batas isi yang dikirim ke Remote
 const LINE_RE = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}\.\d{3}) \[([IWE])\] /;
 
 let dir = null, stream = null, streamDate = "", written = 0, installed = false;
@@ -79,34 +79,42 @@ function dates() {
 }
 
 /**
- * Baca log satu tanggal. opts: { date, level: all|warn|error, tail, from: "HH:MM", to: "HH:MM", q }
- * Mengembalikan { date, dates, total, shown, truncated, bytes, lines: [string] }.
+ * Baca log satu tanggal secara BERTAHAP (stream), jadi app tidak tertahan walau filenya besar.
+ * opts: { date, level: all|warn|error, tail, from: "HH:MM", to: "HH:MM", q }
+ * Mengembalikan Promise<{ date, dates, total, shown, truncated, bytes, lines: [string] }>.
  */
-function readLog(opts = {}) {
+async function readLog(opts = {}) {
   const date = opts.date || ymd();
   const out = { date, today: ymd(), dates: dates(), total: 0, shown: 0, truncated: false, bytes: 0, lines: [] };
   if (!dir) return { ...out, error: "Log aplikasi tidak aktif." };
   const file = path.join(dir, `app-${date}.log`);
-  let raw;
-  try { raw = fs.readFileSync(file, "utf8"); } catch { return out; }
-  out.bytes = Buffer.byteLength(raw);
-  // gabungkan baris lanjutan (stack trace) ke catatan induknya
-  const recs = [];
-  for (const ln of raw.split("\n")) {
-    if (!ln) continue;
-    const m = LINE_RE.exec(ln);
-    if (m) recs.push({ t: m[2].slice(0, 5), lv: m[3], text: ln });
-    else if (recs.length) recs[recs.length - 1].text += "\n" + ln;
-  }
+  try { out.bytes = fs.statSync(file).size; } catch { return out; }
   const rank = { I: 0, W: 1, E: 2 }, min = opts.level === "error" ? 2 : opts.level === "warn" ? 1 : 0;
-  const q = (opts.q || "").toLowerCase();
-  const sel = recs.filter((r) => rank[r.lv] >= min && (!opts.from || r.t >= opts.from) && (!opts.to || r.t <= opts.to) && (!q || r.text.toLowerCase().includes(q)));
-  out.total = sel.length;
-  let tail = sel.slice(-Math.max(1, Math.min(2000, opts.tail || 400))), size = 0;
-  const keep = [];
-  for (let i = tail.length - 1; i >= 0; i--) { size += tail[i].text.length + 1; if (size > MAX_OUT_CHARS) break; keep.push(tail[i].text); }
+  const q = (opts.q || "").toLowerCase(), cap = Math.max(1, Math.min(2000, opts.tail || 400));
+  const ring = []; // hanya N catatan cocok terakhir yang disimpan (hemat memori)
+  let cur = null, total = 0;
+  const flush = () => {
+    if (!cur) return;
+    if (rank[cur.lv] >= min && (!opts.from || cur.t >= opts.from) && (!opts.to || cur.t <= opts.to) && (!q || cur.text.toLowerCase().includes(q))) {
+      total++; ring.push(cur.text); if (ring.length > cap) ring.shift();
+    }
+  };
+  await new Promise((resolve) => {
+    const rl = require("readline").createInterface({ input: fs.createReadStream(file, { encoding: "utf8" }), crlfDelay: Infinity });
+    rl.on("line", (ln) => {
+      if (!ln) return;
+      const m = LINE_RE.exec(ln);
+      if (m) { flush(); cur = { t: m[2].slice(0, 5), lv: m[3], text: ln }; }
+      else if (cur && cur.text.length < 20000) cur.text += "\n" + ln; // baris lanjutan (stack trace)
+    });
+    rl.on("close", resolve); rl.on("error", resolve);
+  });
+  flush();
+  out.total = total;
+  let size = 0; const keep = [];
+  for (let i = ring.length - 1; i >= 0; i--) { size += ring[i].length + 1; if (size > MAX_OUT_CHARS) break; keep.push(ring[i]); }
   keep.reverse();
-  out.lines = keep; out.shown = keep.length; out.truncated = keep.length < sel.length;
+  out.lines = keep; out.shown = keep.length; out.truncated = keep.length < total;
   return out;
 }
 

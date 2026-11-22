@@ -1654,8 +1654,21 @@ app.post("/api/integration/vouchers/:code/void", requireApiKey, (req, res) => {
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const DATA_IMG = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/;
-// Kunci unggah per sesi (di memori): hanya pemilik sesi yang boleh menambahkan GIF/video ke sesinya.
-const sessionKeys = new Map();
+// Kunci unggah per sesi: hanya pemilik sesi yang boleh menambahkan GIF/video/klip ke sesinya.
+// Disimpan di DATABASE (bukan memori) supaya restart aplikasi di tengah sesi tidak membuat unggahan GIF / Live / klip yang menyusul ditolak.
+db.exec("CREATE TABLE IF NOT EXISTS session_upload_keys (session_id TEXT PRIMARY KEY, key TEXT NOT NULL, until INTEGER NOT NULL)");
+const sessionKeys = {
+  get(id) { const r = db.prepare("SELECT key, until FROM session_upload_keys WHERE session_id = ?").get(String(id)); return r ? { key: r.key, until: Number(r.until) } : undefined; },
+  set(id, v) { db.prepare("INSERT OR REPLACE INTO session_upload_keys (session_id, key, until) VALUES (?, ?, ?)").run(String(id), String(v.key), Number(v.until)); },
+};
+const pruneSessionKeys = () => { try { db.prepare("DELETE FROM session_upload_keys WHERE until < ?").run(Date.now() - 24 * 3600 * 1000); } catch { /* abaikan */ } };
+pruneSessionKeys(); setInterval(pruneSessionKeys, 3600 * 1000).unref();
+// Penolakan unggahan dicatat (dengan id sesi + alasan) supaya kasus "GIF / klip tidak ada" bisa dilacak dari log
+const rejectUpload = (res, what, id, k, key) => {
+  const why = !k ? "kunci sesi tidak ditemukan" : k.key !== key ? "kunci tidak cocok" : "kunci kedaluwarsa";
+  console.warn(`[upload] ${what} DITOLAK sesi ${String(id).slice(0, 40)}: ${why}`);
+  return res.status(403).json({ error: "Kunci sesi tidak valid / kedaluwarsa." });
+};
 const publicFileUrl = (p) => (p ? `http://${config.publicHost}:${config.port}${p}` : null);
 
 /** Salin hasil ke folder ekspor real-time (flashdisk / folder cloud) kalau diaktifkan admin. Gagal = dicatat saja, tidak menggagalkan sesi. */
@@ -1728,7 +1741,7 @@ app.post("/api/session/shots", express.json({ limit: "100mb" }), (req, res) => {
   const { sessionId, key, offset, shots } = req.body ?? {};
   const id = String(sessionId ?? "");
   const k = SAFE_ID.test(id) ? sessionKeys.get(id) : null;
-  if (!k || k.key !== key || k.until < Date.now()) return res.status(403).json({ error: "Kunci sesi tidak valid / kedaluwarsa." });
+  if (!k || k.key !== key || k.until < Date.now()) return rejectUpload(res, "foto mentah", id, k, key);
   const off = Math.max(0, Math.min(39, Number(offset) || 0));
   let saved = 0;
   try { saved = saveRawShots(id, localDate(), shots, off); } catch (e) { console.error("[output] Gagal simpan foto mentah:", e.message); return res.status(500).json({ error: "Gagal menyimpan foto mentah." }); }
@@ -1828,7 +1841,7 @@ app.post("/api/session/media", express.raw({ type: () => true, limit: "300mb" })
   if (isExisting) {
     id = String(req.query.sessionId);
     const k = sessionKeys.get(id);
-    if (!k || k.key !== req.query.key || k.until < Date.now()) return res.status(403).json({ error: "Kunci sesi tidak valid / kedaluwarsa." });
+    if (!k || k.key !== req.query.key || k.until < Date.now()) return rejectUpload(res, "GIF/Live", id, k, req.query.key);
     key = k.key;
   } else {
     if (!modeCfg?.enabled) return res.status(403).json({ error: "Mode ini tidak aktif." });
@@ -1874,7 +1887,7 @@ const CLIP_TYPES = {
 app.post("/api/session/clip", express.raw({ type: () => true, limit: "60mb" }), (req, res) => {
   const id = String(req.query.sessionId ?? "");
   const k = SAFE_ID.test(id) ? sessionKeys.get(id) : null;
-  if (!k || k.key !== req.query.key || k.until < Date.now()) return res.status(403).json({ error: "Kunci sesi tidak valid / kedaluwarsa." });
+  if (!k || k.key !== req.query.key || k.until < Date.now()) return rejectUpload(res, "klip", id, k, req.query.key);
   if (settingsStore.load().result?.live === false) return res.status(403).json({ error: "Fitur Live dimatikan di pengaturan." });
   const mime = String(req.headers["content-type"] ?? "").split(";")[0].trim();
   const spec = CLIP_TYPES[mime];
@@ -2116,20 +2129,21 @@ remoteAgent.registerTool("tools.archive_cleanup", (p) => {
   logActivity("remote", "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: r.days, hariDihapus: r.removedDays, bytes: r.freedBytes });
   return { ok: true, message: `${r.removedDays} folder tanggal dihapus (${(r.freedBytes / 1048576).toFixed(1)} MB)` + (r.failed ? `, ${r.failed} gagal` : ""), data: r };
 });
-remoteAgent.registerTool("logs.read", (p) => {
+remoteAgent.registerTool("logs.read", async (p) => {
   const appLog = require("./appLog");
-  const r = appLog.readLog({ date: p.date, level: p.level, tail: p.tail, from: p.from, to: p.to, q: p.q });
+  const r = await appLog.readLog({ date: p.date, level: p.level, tail: p.tail, from: p.from, to: p.to, q: p.q });
   if (r.error) return { ok: false, error: r.error };
   let activity = [];
   if (p.activity) {
     try {
       const [y, m, d] = r.date.split("-").map(Number), a0 = new Date(y, m - 1, d), a1 = new Date(y, m - 1, d + 1);
       const hm = (iso) => { const t = new Date(iso); return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`; };
-      activity = db.prepare("SELECT at, username, action, target, detail FROM activity_log WHERE at >= ? AND at < ? ORDER BY at ASC LIMIT 400").all(a0.toISOString(), a1.toISOString())
-        .map((x) => ({ t: hm(x.at), user: x.username || "", action: x.action, target: x.target || "", detail: appLog.redact(x.detail || "").slice(0, 300) }))
+      activity = db.prepare("SELECT at, username, action, target, detail FROM activity_log WHERE at >= ? AND at < ? ORDER BY at ASC LIMIT 300").all(a0.toISOString(), a1.toISOString())
+        .map((x) => ({ t: hm(x.at), user: x.username || "", action: x.action, target: x.target || "", detail: appLog.redact(x.detail || "").slice(0, 200) }))
         .filter((x) => (!p.from || x.t >= p.from) && (!p.to || x.t <= p.to) && (!p.q || JSON.stringify(x).toLowerCase().includes(p.q.toLowerCase())));
     } catch { /* tabel aktivitas tidak terbaca: log file tetap dikirim */ }
   }
+  if (JSON.stringify(r).length + JSON.stringify(activity).length > 380000) activity = []; // batas kirim ke Remote 400 KB
   return { ok: true, message: `${r.shown} baris log ${r.date}${r.truncated ? " (dipotong, persempit jam / cari)" : ""}`, data: { ...r, activity } };
 });
 remoteAgent.registerTool("tools.cleanup_orphans", () => {

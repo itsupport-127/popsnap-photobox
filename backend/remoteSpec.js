@@ -21,6 +21,8 @@ const T = (path, label, max, o = {}) => ({ path, label, type: "text", max, ...o 
 const TA = (path, label, max, o = {}) => ({ path, label, type: "textarea", max, ...o });
 const C = (path, label, o = {}) => ({ path, label, type: "color", ...o });
 const E = (path, label, options, o = {}) => ({ path, label, type: "enum", options, ...o });
+const PF = (path, label, o = {}) => ({ path, label, type: "profile", ...o });   // {iso,av,tv,wb} = kode pilihan kamera ("" = tidak diatur)
+const PD = (path, label, o = {}) => ({ path, label, type: "periods", ...o });   // daftar periode jadwal (maks 6)
 const DEG = [[0, "0°"], [90, "90°"], [180, "180°"], [270, "270°"]];
 const DEG_PLUS = [[0, "0° (ikut Rotation)"], [90, "+90°"], [180, "+180°"], [270, "+270°"]];
 
@@ -180,8 +182,14 @@ const SECTIONS = [
       I("camera.photoLight.target", "Target terang (0–255)", 60, 200, { when: "camera.photoLight.auto" }),
       I("camera.photoLight.maxPct", "Maksimal koreksi", 0, 100, { unit: "%", when: "camera.photoLight.auto" }),
     ] },
-    { id: "schedule", title: "Jadwal siang / malam", hint: "Jam dan profil tiap periode diatur di app photobox (Tools → Setelan Kamera).", fields: [
+    { id: "exposure", title: "Profil Live & Foto", hint: "ISO / shutter / aperture / white balance (Canon / Nikon langsung). Pilihan diambil dari kamera yang tersambung: klik “Baca opsi dari kamera” dulu. Berlaku saat live view berganti profil.", fields: [
+      B("camera.exposure.split", "Pisahkan setelan Live View dan Foto", { hint: "Mati: satu setelan kamera untuk keduanya. Nyala: Live View lebih terang supaya tampak, Foto lebih gelap supaya tidak gosong." }),
+      PF("camera.exposure.live", "Profil Live View", { when: "camera.exposure.split" }),
+      PF("camera.exposure.photo", "Profil Foto", { when: "camera.exposure.split" }),
+    ] },
+    { id: "schedule", title: "Jadwal siang / malam", hint: "Ganti setelan kamera otomatis menurut jam (maks. 6 periode, jam tidak boleh bertumpuk). Pergantian terjadi di sela sesi, tidak saat jepret. Di luar periode dipakai profil dasar di atas.", fields: [
       B("camera.exposureSchedule.enabled", "Ganti setelan kamera otomatis menurut jam"),
+      PD("camera.exposureSchedule.periods", "Daftar periode", { when: "camera.exposureSchedule.enabled" }),
     ] },
   ] },
 
@@ -347,6 +355,35 @@ function validateTool(type, raw) {
 }
 
 /** Periksa & rapikan patch datar { "path": nilai }. Kembali { ok, clean, errors }. */
+const PROFILE_KEYS = ["iso", "av", "tv", "wb"], CODE = /^\d{1,10}$/, HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+function cleanProfile(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  for (const k of Object.keys(v)) if (!PROFILE_KEYS.includes(k)) return null;
+  const out = {};
+  for (const k of PROFILE_KEYS) { const x = v[k]; if (x === undefined || x === null || x === "") out[k] = ""; else if (CODE.test(String(x))) out[k] = String(x); else return null; }
+  return out;
+}
+const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+function cleanPeriods(raw) {
+  if (!Array.isArray(raw)) return { err: "harus daftar periode." };
+  if (raw.length > 6) return { err: "maksimal 6 periode." };
+  const out = [], ids = new Set(), cover = new Array(1440).fill(-1);
+  for (let i = 0; i < raw.length; i++) {
+    const q = raw[i]; if (!q || typeof q !== "object" || Array.isArray(q)) return { err: `periode ${i + 1} tidak valid.` };
+    const label = String(q.label ?? "").trim();
+    if (!label || label.length > 24) return { err: `periode ${i + 1}: nama 1–24 karakter.` };
+    if (!HHMM.test(String(q.from)) || !HHMM.test(String(q.to))) return { err: `periode “${label}”: jam harus HH:MM.` };
+    if (q.from === q.to) return { err: `periode “${label}”: jam mulai dan selesai tidak boleh sama.` };
+    const live = cleanProfile(q.live ?? {}), photo = cleanProfile(q.photo ?? {});
+    if (!live || !photo) return { err: `periode “${label}”: setelan kamera tidak valid.` };
+    let id = typeof q.id === "string" && /^[\w-]{1,24}$/.test(q.id) ? q.id : `p${i + 1}`; if (ids.has(id)) id = `p${i + 1}-${i}`; ids.add(id);
+    const a = toMin(q.from), z = toMin(q.to);
+    for (let m = a; m !== z; m = (m + 1) % 1440) { if (cover[m] !== -1 && cover[m] !== i) return { err: `periode “${label}” bertumpuk dengan “${out[cover[m]].label}”.` }; cover[m] = i; }
+    out.push({ id, label, from: q.from, to: q.to, live, photo });
+  }
+  return { ok: out };
+}
+
 function validatePatch(patch) {
   const clean = {}, errors = [];
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) return { ok: false, clean, errors: ["Patch tidak valid."] };
@@ -369,6 +406,10 @@ function validatePatch(patch) {
     } else if (f.type === "enum") {
       const hit = f.options.find(([v]) => (f.numeric ? Number(raw) === v && raw !== "" && raw !== null : v === raw));
       if (!hit) errors.push(`${f.label}: pilihan tidak dikenal.`); else clean[path] = hit[0];
+    } else if (f.type === "profile") {
+      const v = cleanProfile(raw); if (!v) errors.push(`${f.label}: nilai kamera tidak valid.`); else clean[path] = v;
+    } else if (f.type === "periods") {
+      const r = cleanPeriods(raw); if (r.err) errors.push(`${f.label}: ${r.err}`); else clean[path] = r.ok;
     } else if (f.type === "steps") {
       const ids = f.options.map((o) => o[0]);
       if (!Array.isArray(raw) || raw.length !== ids.length || new Set(raw).size !== ids.length || !raw.every((x) => ids.includes(x))) errors.push(`${f.label}: harus memuat semua langkah tepat satu kali.`);
