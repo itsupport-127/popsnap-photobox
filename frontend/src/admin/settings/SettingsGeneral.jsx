@@ -127,6 +127,7 @@ export default function SettingsGeneral({ s, set, pin, setPin, outputDir, only }
 
       {vis("ATURAN SESI FOTO") && (
       <Card title="ATURAN SESI FOTO">
+        <Row label="Filter pada foto mentah" hint="Mati (disarankan): file mentah tetap polos sebagai cadangan 'foto asli'; filter hanya di hasil template. Hidup: filter pilihan tamu ikut dipasang ke file mentah (tamu tidak punya versi asli)."><Check checked={!!g.rawFilter} onChange={(v) => set(["general", "rawFilter"], v)} /></Row>
         <Row label="Jumlah foto per sesi"><div className="w-28"><NumInput value={s.session.totalShots} min={1} onCommit={(v) => set(["session", "totalShots"], Math.round(v))} /></div></Row>
         <Row label="Batas retake per sesi"><div className="w-28"><NumInput value={s.session.maxRetakes} min={0} onCommit={(v) => set(["session", "maxRetakes"], Math.round(v))} /></div></Row>
         <p className="text-[12px] text-[#6B7684] mt-3 mb-1 pl-[226px]">Batas waktu (detik)</p>

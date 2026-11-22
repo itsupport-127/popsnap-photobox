@@ -6,6 +6,10 @@
 // Simulasi dihapus: unggah selalu ke backend.
 // ==========================================================
 
+import appConfig from "../config/appConfig";
+import { getLutFilter, filterCss } from "../utils/filters";
+import { applyLut, loadLut } from "../utils/lut";
+
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
 /** Balik horizontal satu foto (dataURL/alamat) -> dataURL JPEG. Gagal -> kembalikan aslinya. */
@@ -16,6 +20,21 @@ async function flipShot(src) {
     c.width = img.naturalWidth; c.height = img.naturalHeight;
     const ctx = c.getContext("2d");
     ctx.translate(c.width, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0);
+    return c.toDataURL("image/jpeg", 0.95);
+  } catch { return src; }
+}
+
+/** Pasang filter pilihan tamu (CSS atau LUT) ke satu foto mentah -> dataURL JPEG. Gagal -> kembalikan aslinya (mentah tidak boleh hilang). */
+async function filterShot(src, filterId) {
+  try {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = src; });
+    const lutF = getLutFilter(filterId);
+    if (lutF) return applyLut(img, await loadLut(lutF.url, lutF.size), lutF.intensity ?? 100).toDataURL("image/jpeg", 0.95);
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext("2d");
+    ctx.filter = filterCss(filterId);
+    ctx.drawImage(img, 0, 0);
     return c.toDataURL("image/jpeg", 0.95);
   } catch { return src; }
 }
@@ -36,7 +55,10 @@ async function finalToJpeg(src) {
 /** Kirim hasil sesi FOTO (gambar akhir + semua foto mentah). Mengembalikan { downloadUrl, sessionId, uploadKey }. */
 export async function uploadSession(session) {
   // Foto mentah ikut pilihan tamu: kalau memilih Mirror, file mentah yang diunduh juga terbalik seperti yang mereka lihat
-  const shots = session.editorState?.mirror ? await Promise.all(session.shots.map(flipShot)) : session.shots;
+  let shots = session.editorState?.mirror ? await Promise.all(session.shots.map(flipShot)) : session.shots;
+  // Pengaturan Umum > "Filter pada foto mentah" (bawaan mati): kalau hidup, filter pilihan tamu ikut dipasang ke file mentah
+  const fid = session.editorState?.filter;
+  if (appConfig.settings?.general?.rawFilter && fid && fid !== "none") shots = await Promise.all(shots.map((x) => filterShot(x, fid)));
   // 1) Hasil akhir SAJA (kecil) -> sesi, folder hasil dan QR pasti jadi. 2) Foto mentah menyusul bertahap (lihat /api/session/shots),
   //    sehingga ukuran total tidak pernah membuat satu permintaan ditolak.
   const finalJpeg = session.finalImage ? await finalToJpeg(session.finalImage) : undefined;

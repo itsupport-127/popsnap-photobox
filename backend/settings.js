@@ -28,6 +28,7 @@ const DEFAULTS = {
     // Urutan langkah setelah tamu menekan Start. Boleh disusun bebas (lihat FLOW_STEPS). "payment" sebelum "template" = bayar dulu
     // (hanya berlaku kalau semua template yang tampil harganya sama; kalau tidak, bayar tetap setelah pilih template).
     flow: { steps: ["disclaimer", "template", "payment", "consent", "reminder"] },
+    rawFilter: false, // true = filter pilihan tamu ikut dipasang ke file foto mentah (bawaan: mentah polos)
     consent: { enabled: false, title: "IZIN FOTO", text: "Hai kak! Fotonya boleh kami bagikan di sosmed atau dipajang di mading toko? Pilih yang kakak nyaman ya.", seconds: 20 },
     disclaimer: {
       enabled: false,
@@ -303,6 +304,7 @@ function update(patch) {
       const given = (Array.isArray(obj(g.flow).steps) ? obj(g.flow).steps : []).filter((x) => FLOW_STEPS.includes(x) && !seen.has(x) && seen.add(x));
       ng.flow = { steps: [...given, ...cg.flow.steps.filter((x) => !seen.has(x))] }; // langkah yang hilang ditambahkan di belakang: tidak pernah ada langkah terlewat
     }
+    ng.rawFilter = bool(g.rawFilter, cg.rawFilter);
     const cs = obj(g.consent);
     ng.consent = { enabled: bool(cs.enabled, cg.consent.enabled), title: str(cs.title, 40, cg.consent.title) || cg.consent.title, text: str(cs.text, 200, cg.consent.text) || cg.consent.text, seconds: num(cs.seconds, 5, 120, cg.consent.seconds) };
     const ex = obj(g.export);
