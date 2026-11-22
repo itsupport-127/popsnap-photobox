@@ -244,4 +244,5 @@ function mount(app, requirePerm) {
   });
 }
 
-module.exports = { registerTool, mount, start, stop, status: publicConfig, _handle: handle, _load: load, _save: save };
+const sessionActive = () => frontAlive() && !!st.ui.screen && st.ui.screen !== "WELCOME";
+module.exports = { sessionActive, registerTool, mount, start, stop, status: publicConfig, _handle: handle, _load: load, _save: save };

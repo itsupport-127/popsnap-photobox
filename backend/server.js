@@ -11,6 +11,7 @@
 // (paymentService.js, sessionService.js) tinggal ganti
 // VITE_SIMULATE_PAYMENT=false tanpa ubah UI.
 // ==========================================================
+require("./appLog").install(process.env.POPSNAP_DATA || __dirname); // log ke file per tanggal (alat Log aplikasi di Remote)
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
@@ -1910,7 +1911,7 @@ app.post("/api/session/clip", express.raw({ type: () => true, limit: "60mb" }), 
 });
 
 // Halaman unduh /s/<token> (+ files.json, all.zip)
-require("./cameraBridge").mount(app, { settingsStore, remoteTools: (t, f) => require("./remoteAgent").registerTool(t, f) });
+require("./cameraBridge").mount(app, { settingsStore, remoteTools: (t, f) => require("./remoteAgent").registerTool(t, f), sessionActive: () => require("./remoteAgent").sessionActive() });
 require("./sharePage").mount(app, { db, backendDir: config.dataDir, getStoreName: () => settingsStore.load().event?.name || db.prepare("SELECT store_name FROM store_settings WHERE id = 1").get()?.store_name || "POPSNAP" });
 
 // ---------- PAYMENT (QRIS via Midtrans) ----------
@@ -2114,6 +2115,22 @@ remoteAgent.registerTool("tools.archive_cleanup", (p) => {
   if (r.error) return { ok: false, error: r.error };
   logActivity("remote", "storage.archive-cleanup", "arsip foto lama", { lebihTuaDariHari: r.days, hariDihapus: r.removedDays, bytes: r.freedBytes });
   return { ok: true, message: `${r.removedDays} folder tanggal dihapus (${(r.freedBytes / 1048576).toFixed(1)} MB)` + (r.failed ? `, ${r.failed} gagal` : ""), data: r };
+});
+remoteAgent.registerTool("logs.read", (p) => {
+  const appLog = require("./appLog");
+  const r = appLog.readLog({ date: p.date, level: p.level, tail: p.tail, from: p.from, to: p.to, q: p.q });
+  if (r.error) return { ok: false, error: r.error };
+  let activity = [];
+  if (p.activity) {
+    try {
+      const [y, m, d] = r.date.split("-").map(Number), a0 = new Date(y, m - 1, d), a1 = new Date(y, m - 1, d + 1);
+      const hm = (iso) => { const t = new Date(iso); return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`; };
+      activity = db.prepare("SELECT at, username, action, target, detail FROM activity_log WHERE at >= ? AND at < ? ORDER BY at ASC LIMIT 400").all(a0.toISOString(), a1.toISOString())
+        .map((x) => ({ t: hm(x.at), user: x.username || "", action: x.action, target: x.target || "", detail: appLog.redact(x.detail || "").slice(0, 300) }))
+        .filter((x) => (!p.from || x.t >= p.from) && (!p.to || x.t <= p.to) && (!p.q || JSON.stringify(x).toLowerCase().includes(p.q.toLowerCase())));
+    } catch { /* tabel aktivitas tidak terbaca: log file tetap dikirim */ }
+  }
+  return { ok: true, message: `${r.shown} baris log ${r.date}${r.truncated ? " (dipotong, persempit jam / cari)" : ""}`, data: { ...r, activity } };
 });
 remoteAgent.registerTool("tools.cleanup_orphans", () => {
   const r = cleanupOrphanedFiles();

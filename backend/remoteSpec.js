@@ -303,7 +303,7 @@ for (const s of SECTIONS) for (const g of s.groups) for (const f of g.fields) FI
 
 // ---------- alat (perintah sekali jalan) ----------
 const CAM_PROPS = ["tv", "av", "iso", "wb"];
-const TOOL_TYPES = ["tools.storage", "tools.archive_cleanup", "tools.cleanup_orphans", "camera.status", "camera.exposure.get", "camera.exposure.set"];
+const TOOL_TYPES = ["tools.storage", "tools.archive_cleanup", "tools.cleanup_orphans", "camera.status", "camera.exposure.get", "camera.exposure.set", "logs.read"];
 
 /** Periksa & rapikan payload perintah alat. Kembali { ok, payload, error }. */
 function validateTool(type, raw) {
@@ -322,6 +322,25 @@ function validateTool(type, raw) {
       if (!CAM_PROPS.includes(p.prop)) return { ok: false, error: "Setelan kamera tidak dikenal." };
       if (!/^\d{1,10}$/.test(String(p.value))) return { ok: false, error: "Nilai setelan kamera tidak valid." };
       return { ok: true, payload: { prop: p.prop, value: String(p.value) } };
+    }
+    case "logs.read": {
+      // Baca log aplikasi (hanya baca). date kosong = hari ini menurut jam booth.
+      let date = null;
+      if (p.date !== undefined && p.date !== null && p.date !== "") {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(p.date));
+        const dt = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+        if (!m || dt.getUTCFullYear() !== +m[1] || dt.getUTCMonth() !== +m[2] - 1 || dt.getUTCDate() !== +m[3]) return { ok: false, error: "Tanggal log tidak valid (format YYYY-MM-DD)." };
+        date = String(p.date);
+      }
+      const level = p.level === undefined || p.level === "" ? "all" : p.level;
+      if (!["all", "warn", "error"].includes(level)) return { ok: false, error: "Tingkat log tidak dikenal." };
+      const tail = p.tail === undefined || p.tail === "" ? 400 : Number(p.tail);
+      if (!Number.isInteger(tail) || tail < 50 || tail > 2000) return { ok: false, error: "Jumlah baris log 50–2000." };
+      const hm = (v) => (v === undefined || v === null || v === "" ? null : /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : false);
+      const from = hm(p.from), to = hm(p.to);
+      if (from === false || to === false) return { ok: false, error: "Jam log harus HH:MM." };
+      const q = p.q === undefined || p.q === null ? "" : String(p.q).trim().slice(0, 60);
+      return { ok: true, payload: { date, level, tail, from, to, q, activity: p.activity !== false } };
     }
     default: return { ok: false, error: "Perintah tidak dikenal." };
   }

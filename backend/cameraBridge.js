@@ -59,7 +59,7 @@ function httpGet(urlStr, timeout) {
   });
 }
 
-function mount(app, { settingsStore, remoteTools }) {
+function mount(app, { settingsStore, remoteTools, sessionActive }) {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const cfg = () => {
     const d = settingsStore.load().camera?.dslr ?? {};
@@ -396,12 +396,17 @@ function mount(app, { settingsStore, remoteTools }) {
     remoteTools("camera.status", () => { const c = cfg(); return { ok: true, message: "Kamera dibaca", data: { driver: c.driver, model: c.model || null, live: !!lvOn, capturing: capturing > 0 } }; });
     remoteTools("camera.exposure.get", async () => {
       const n = nativeFor(); if (n.err) return { ok: false, error: n.err };
+      if (capturing > 0 || (sessionActive && sessionActive())) return { ok: false, error: "Ada sesi foto yang sedang berjalan; membaca kamera ditunda sampai sesi selesai." };
       const info = await n.b.camInfo(n.c.model); if (info?.error) return { ok: false, error: info.error };
       return { ok: true, message: "Setelan kamera dibaca", data: info };
     });
     remoteTools("camera.exposure.set", async (p) => {
       const n = nativeFor(); if (n.err) return { ok: false, error: n.err };
-      const r = await n.b.camSet(n.c.model, p.prop, p.value);
+      // Mengganti ISO saat tamu berfoto membuat kamera 'DeviceBusy' / live view mati: tolak, dan jalankan lewat antrean yang sama dengan profil jadwal
+      if (capturing > 0 || (sessionActive && sessionActive())) return { ok: false, error: "Ada sesi foto yang sedang berjalan. Ubah setelan kamera setelah sesi selesai (booth di layar awal)." };
+      const job = expQ.then(() => n.b.camSet(n.c.model, p.prop, p.value));
+      expQ = job.catch(() => {});
+      const r = await job;
       if (r.ok && n.b.expApplied) delete n.b.expApplied[p.prop];
       return r.ok ? { ok: true, message: "Setelan kamera diubah", data: r.info || null } : { ok: false, error: r.error || "Ditolak kamera" };
     });
