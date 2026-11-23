@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import ReminderView, { fmtReminderTimer } from "../../components/ReminderView";
 import { listTemplates } from "../../services/templateService";
 import { API_BASE } from "../../services/settingsService";
+import defaultLogo from "../../assets/logo-popsnap.png";
 import { inputCls, NumInput } from "../editorKit";
 import { Btn, Card, Notice } from "../ui";
 import { Check, Color, ImagePicker, Range, Row, Select } from "./controls";
@@ -33,6 +34,7 @@ const abs = (u) => (u ? (u.startsWith("http") ? u : `${API_BASE}${u}`) : "");
 export default function SettingsDisplay({ s, set, setError, only }) {
   const vis = (t) => !only || only.includes(t); // tampilkan hanya kartu yang diminta halaman Pengaturan (pengelompokan baru)
   const d = s.display;
+  const brand = d.brand || { logo: "", name: "POPSNAP" };
   const ss = d.startScreen, cap = d.capture, sh = d.sharing, rm = d.reminder, lk = d.lock;
   const pinSet = s.general.security.pinSet;
   const [templates, setTemplates] = useState([]);
@@ -58,6 +60,24 @@ export default function SettingsDisplay({ s, set, setError, only }) {
         <Row label="Primary Color" hint="Tombol utama dan garis."><Color value={d.colors.primary} onChange={(v) => set(["display", "colors", "primary"], v)} /></Row>
         <Row label="Button Font Color" hint="Warna tulisan di tombol utama."><Color value={d.colors.buttonText} onChange={(v) => set(["display", "colors", "buttonText"], v)} /></Row>
         <Row label="Secondary Color" hint="Layar Start (jika tanpa gambar), tombol mode, dan gembok."><Color value={d.colors.secondary} onChange={(v) => set(["display", "colors", "secondary"], v)} /></Row>
+      </Card>)}
+
+      {vis("LOGO & NAMA APLIKASI") && (
+      <Card title="LOGO & NAMA APLIKASI">
+        <Row label="Logo" hint="Tampil di layar Start, pilih template, pembayaran, sesi foto, login, dan menu admin. Kosong = logo POPSNAP bawaan. Disarankan PNG transparan, lebar sekitar 800 px.">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-48 h-20 rounded-lg border border-[#C7D0DA] bg-[#4082AE] flex items-center justify-center overflow-hidden p-2">
+              <img src={brand.logo ? abs(brand.logo) : defaultLogo} alt="" className="max-w-full max-h-full object-contain" />
+            </div>
+            <ImagePicker value={brand.logo} onChange={(v) => set(["display", "brand", "logo"], v)} onError={setError} />
+          </div>
+        </Row>
+        <Row label="Nama aplikasi" hint="Judul jendela aplikasi dan teks alternatif logo. Kosong = POPSNAP. Nama ini tidak mengubah nama installer.">
+          <div className="flex items-center gap-2 flex-wrap">
+            <input className={inputCls} maxLength={40} placeholder="POPSNAP" value={brand.name} onChange={(e) => set(["display", "brand", "name"], e.target.value)} />
+            {(brand.logo || (brand.name && brand.name !== "POPSNAP")) && <Btn onClick={() => { set(["display", "brand", "logo"], ""); set(["display", "brand", "name"], "POPSNAP"); }}>Kembalikan ke POPSNAP</Btn>}
+          </div>
+        </Row>
       </Card>)}
 
       {vis("START SCREEN") && (

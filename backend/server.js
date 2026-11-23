@@ -1178,6 +1178,7 @@ app.get("/api/settings/public", async (req, res) => {
   for (const o of [d.startScreen, d.capture, d.reminder]) {
     for (const k of ["image", "sayCheeseImage", "backgroundImage", "logoImage"]) if (o[k]) o[k] = toFullUrl(o[k]);
   }
+  if (d.brand?.logo) d.brand.logo = toFullUrl(d.brand.logo);
   for (const f of kiosk.editor?.filters ?? []) if (f.lut?.url) f.lut.url = toFullUrl(f.lut.url);
   kiosk.flow = { steps: kiosk.general.flow.steps, payFirst: flatPriceInfo() };
   res.json({ storeName: store?.store_name, ...kiosk, payment: { mode: pay.mode, free: pay.mode === "none", methods: pay.methods, online: pay.online, simulate: !!pay.simulate, testPayment: pay.mode !== "voucher" && pay.mode !== "none" && !!pay.qrisConfigured && !pay.simulate && isTestPayment(), qrisDown: pay.mode !== "voucher" && pay.mode !== "none" && !pay.methods.includes("qris") && !!(pay.qrisConfigured || pay.simulate),

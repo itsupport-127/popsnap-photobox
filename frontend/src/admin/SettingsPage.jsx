@@ -18,8 +18,8 @@ const COMP = { general: SettingsGeneral, camera: SettingsCamera, display: Settin
 const GROUPS = [
   { id: "booth", label: "Booth & Event", icon: "gear", desc: "Nama studio, event, mode booth, PIN, keyboard, folder data, dan tombol kunci.",
     items: [["store"], ["general", ["EVENT", "BOOTH MODE", "KEYBOARD & PIN", "DIRECTORIES"]], ["display", ["TOMBOL KUNCI (GEMBOK → PIN)"]]] },
-  { id: "tampilan", label: "Tampilan & Layar Awal", icon: "image", desc: "Layar penuh, warna, gambar layar Start, dan pilihan template.",
-    items: [["display", ["LAYAR PENUH & WARNA", "START SCREEN"]]] },
+  { id: "tampilan", label: "Tampilan & Layar Awal", icon: "image", desc: "Logo dan nama aplikasi, layar penuh, warna, gambar layar Start, dan pilihan template.",
+    items: [["display", ["LOGO & NAMA APLIKASI", "LAYAR PENUH & WARNA", "START SCREEN"]]] },
   { id: "pengingat", label: "Pengingat & Izin", icon: "ticket", desc: "Disclaimer, izin foto, dan layar pengingat sebelum sesi foto.",
     items: [["general", ["DISCLAIMER", "IZIN FOTO (SOSMED & DIPAJANG DI TOKO)"]], ["display", ["REMINDER SCREEN"]]] },
   { id: "sesi", label: "Sesi Foto", icon: "camera", desc: "Jumlah foto, retake, hitung mundur, mode ketuk, dan tampilan layar jepret.",

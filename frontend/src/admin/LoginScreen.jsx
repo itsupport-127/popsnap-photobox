@@ -1,5 +1,5 @@
 import Backdrop from "../components/Backdrop";
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "../components/BrandLogo";
 import React, { useEffect, useState } from "react";
 import { getAuthStatus, setupFirstAdmin, login } from "../services/authService";
 
@@ -59,7 +59,7 @@ export default function LoginScreen({ onAuthenticated }) {
   return (
     <div className="kiosk-root h-screen w-screen flex flex-col items-center justify-center p-4 overflow-y-auto">
       <Backdrop />
-      <img src={logo} alt="PopSnap" draggable={false} className="relative z-10 w-[min(260px,60vw)] h-auto mb-4 select-none" />
+      <BrandLogo draggable={false} className="relative z-10 w-[min(260px,60vw)] h-auto mb-4 select-none" />
       <form onSubmit={handleSubmit} className="modal-card relative z-10 p-6 sm:p-8 w-full max-w-sm flex flex-col gap-4">
         <h1 className="display-h3 text-center">
           {needsSetup ? "Setup Akun Super Admin" : "Login Admin / Kasir"}

@@ -4,7 +4,7 @@ import { useKiosk } from "../hooks/useKiosk";
 import LiveView from "../components/LiveView";
 import useCamera from "../hooks/useCamera";
 import WelcomeDecor from "../components/WelcomeDecor";
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "../components/BrandLogo";
 import useShape from "../hooks/useShape";
 
 const MODES = [
@@ -99,7 +99,7 @@ export default function WelcomeScreen({ dispatch, settings, camera, singleTempla
       </div>
 
       <div className="strip-stage">
-        <img src={logo} alt={title} draggable={false} className="select-none" style={{ left: U(P(463, 110, 200)), top: U(P(394, 600, 330)), width: U(P(802, 860, 800)), height: "auto" }} />
+        <BrandLogo alt={title} draggable={false} className="select-none" style={{ left: U(P(463, 110, 200)), top: U(P(394, 600, 330)), width: U(P(802, 860, 800)), height: "auto" }} />
         {showTitle && <p className="eyebrow !text-base text-center" style={{ left: 0, width: "100%", top: U(P(655, 900, 600)) }}>{title}</p>}
         {subtitle && <p className="text-center font-semibold italic text-white/90 drop-shadow" style={{ left: 0, width: "100%", top: U(showTitle ? P(690, 945, 640) : P(665, 920, 610)), fontSize: U(P(30, 44, 38)) }}>{subtitle}</p>}
 

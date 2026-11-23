@@ -26,7 +26,7 @@ async function lumaOfImage(src) {
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   return lumaOfCanvas(c);
 }
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "../components/BrandLogo";
 import { photoSlotPlan } from "../utils/templatePhotos";
 import ShotThumb, { THUMB_MODES, shapeStyle } from "../components/ShotThumb";
 import useClipRecorder from "../hooks/useClipRecorder";
@@ -389,7 +389,7 @@ export default function PhotoSessionScreen({ session, dispatch }) {
         {/* Baris bawah (desain): Take | logo | Retake */}
         <div className="pay-timer" style={{ left: U(V(228, 60, sqRv ? 40 : 60)), top: U(V(995, 1620, sqRv ? 1112 : 1100)), height: U(64), padding: `0 ${U(32)}`, fontSize: U(34), fontWeight: 700 }}>Take : {taken}/{totalShots}</div>
         {/* Logo di atas (tengah, di antara Batal dan timer); saat pratinjau akhir kembali ke bawah karena judul menempati atas */}
-        <img src={logo} alt="PopSnap" draggable={false} className="strip-logo"
+        <BrandLogo draggable={false} className="strip-logo"
           style={sqRv ? { display: "none" } : stacked ? { left: U(V(0, 450, 510)), top: U(14), width: U(180) } : reviewing ? { left: U(774), top: U(1000), width: U(180) } : { left: U(774), top: U(10), width: U(180) }} />
         <div className="pay-timer" style={{ right: U(V(226, 60, sqRv ? 40 : 60)), top: U(V(995, 1620, sqRv ? 1112 : 1100)), height: U(64), padding: `0 ${U(34)}`, fontSize: U(34), fontWeight: 700 }}>Retake : {session.retakesUsed}/{maxRetakes}</div>
 

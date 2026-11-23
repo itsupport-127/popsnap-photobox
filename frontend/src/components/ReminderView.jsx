@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { shapeOf } from "../hooks/useShape";
 import TemplateDecor from "./TemplateDecor";
-import logo from "../assets/logo-popsnap.png";
+import { useBrand } from "../state/brand";
 
 /** Isi teks pengingat: {shots}, {retakes}, {frames}, {seconds} diganti angka sebenarnya. */
 export function fillReminder(text, vars) {
@@ -31,6 +31,7 @@ export const fmtReminderTimer = (sec) => `${String(Math.floor(sec / 60)).padStar
  */
 export default function ReminderView({ reminder, items, vars, timerText, hint, className = "" }) {
   const custom = !!reminder.backgroundImage;
+  const brandLogo = useBrand().logo; // logo aplikasi (bawaan POPSNAP / unggahan admin), dipakai kalau layar pengingat tidak punya logo sendiri
   // Bentuk diukur dari WADAH (bukan layar) supaya pratinjau admin juga benar
   const ref = useRef(null);
   const [shape, setShape] = useState("landscape");
@@ -59,7 +60,7 @@ export default function ReminderView({ reminder, items, vars, timerText, hint, c
       {!custom && <TemplateDecor />}
       <div className="rem-stage" style={{ "--sw": SW, "--sh": SH, "--u": `min(calc(100cqw / ${SW}), calc(100cqh / ${SH}))` }}>
         {(reminder.logoImage || !custom) && (
-          <img src={reminder.logoImage || logo} alt="" draggable={false} className="rem-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width), height: reminder.logoImage ? U(70) : "auto", objectFit: "contain" }} />
+          <img src={reminder.logoImage || brandLogo} alt="" draggable={false} className="rem-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width), height: reminder.logoImage ? U(70) : "auto", objectFit: "contain" }} />
         )}
 
         <div className="rem-panel" style={{ left: U(L.panel.left), top: U(L.panel.top), width: U(L.panel.width), background: reminder.panelColor, color: reminder.textColor, padding: `${U(18)} ${U(22)} ${U(25)}`, gap: U(16.5) }}>

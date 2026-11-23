@@ -93,6 +93,8 @@ const DEFAULTS = {
     autoFullscreen: true,   // klik Start / tombol layar penuh = masuk layar penuh (seperti F11)
     startFullscreen: true,  // aplikasi desktop (.exe) dibuka dalam layar penuh
     colors: { background: "#181B23", primary: "#E02843", buttonText: "#FFFFFF", secondary: "#4082AE" }, // tema PopSnap: tinta / merah / putih / biru
+    // Merek di dalam aplikasi: logo (gambar unggahan, "" = logo POPSNAP bawaan) dan nama (judul jendela, teks alternatif logo, header admin)
+    brand: { logo: "", name: "POPSNAP" },
     startScreen: {
       image: "", stretch: "cover", // cover | contain | fill | center
       templateChoice: "favorites", // favorites (hanya template favorit/live yang tampil; sisanya Draft) | single
@@ -402,6 +404,11 @@ function update(patch) {
     nd.colors = {
       background: hex(col.background, cd.colors.background), primary: hex(col.primary, cd.colors.primary),
       buttonText: hex(col.buttonText, cd.colors.buttonText), secondary: hex(col.secondary, cd.colors.secondary),
+    };
+    const br = obj(d.brand), cbr = cd.brand;
+    nd.brand = {
+      logo: br.logo === undefined ? cbr.logo : upath(br.logo, cbr.logo),
+      name: br.name === undefined ? cbr.name : (str(br.name, 40, cbr.name).trim() || "POPSNAP"), // kosong = kembali ke POPSNAP
     };
     const ss = obj(d.startScreen), css = cd.startScreen;
     nd.startScreen = {

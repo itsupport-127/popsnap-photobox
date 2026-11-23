@@ -1,7 +1,7 @@
 import React from "react";
 import useShape from "../hooks/useShape";
 import TemplateDecor from "./TemplateDecor";
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "./BrandLogo";
 
 // Satuan desain: 1 = 1px pada kanvas desain (lihat .strip-screen di index.css)
 const U = (n) => `calc(var(--u) * ${n})`;
@@ -22,7 +22,7 @@ export default function StripNotice({ title, message, actionLabel, onAction, ico
     <div className="kiosk-screen strip-screen h-full w-full overflow-hidden" data-shape={shape}>
       <TemplateDecor />
       <div className="strip-stage">
-        <img src={logo} alt="PopSnap" draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
+        <BrandLogo draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
         <div className="strip-panel" style={{ left: U(c.left), top: U(c.top), width: U(c.w), height: U(c.h) }} />
         <div className="strip-tray notice-tray" style={{ left: U(c.left + 18), top: U(c.top + 18), width: U(c.w - 36), height: U(c.h - 36), borderRadius: U(56), gap: U(34), padding: `0 ${U(48)}` }}>
           <div className="notice-clock" style={{ width: U(120), height: U(120), fontSize: U(66) }} aria-hidden="true">⏱</div>

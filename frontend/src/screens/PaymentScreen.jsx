@@ -12,7 +12,7 @@ import StepBadge from "../components/StepBadge";
 import StripNotice from "../components/StripNotice";
 import TemplateDecor from "../components/TemplateDecor";
 import { PAYMENT_ICONS } from "../components/paymentIcons";
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "../components/BrandLogo";
 
 /**
  * Tahap 4: Pembayaran (QRIS / voucher), batas waktu 45 detik.
@@ -288,7 +288,7 @@ function PaymentSelect({ priceText, remaining, onBack, onQr, onVoucher, qrOfflin
       <TemplateDecor />
       <StepBadge step={4} time={`${remaining}s`} />
       <div className="strip-stage">
-        <img src={logo} alt="PopSnap" draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
+        <BrandLogo draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
 
         <h2 className="pay-title" style={{ left: U(L.title.left), top: U(L.title.top), width: U(L.title.width), height: U(96), fontSize: U(L.title.fs) }}>Select your payment</h2>
         {priceText && <p className="pay-price" style={{ left: U(L.price.left), top: U(L.price.top), width: U(L.price.width), fontSize: U(30) }}>{priceText}</p>}
@@ -318,7 +318,7 @@ function PayFrame({ title, titleBox, panel, tray, trayRadius, timerPos, remainin
     <div className="kiosk-screen strip-screen h-full w-full overflow-hidden" data-shape={shape}>
       <TemplateDecor glow={glow} />
       <div className="strip-stage">
-        <img src={logo} alt="PopSnap" draggable={false} className="strip-logo" style={{ left: U(logoPos.left), top: U(logoPos.top), width: U(logoPos.width) }} />
+        <BrandLogo draggable={false} className="strip-logo" style={{ left: U(logoPos.left), top: U(logoPos.top), width: U(logoPos.width) }} />
         <h2 className="pay-title" style={{ left: U(titleBox.left), top: U(titleBox.top), width: U(titleBox.w), height: U(titleBox.h), fontSize: U(titleBox.fs) }}>{title}</h2>
 
         <div className="strip-panel" style={{ left: U(panel.left), top: U(panel.top), width: U(panel.w), height: U(panel.h) }} />

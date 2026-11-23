@@ -2,6 +2,7 @@ import appConfig from "../config/appConfig";
 import { setFilters } from "../utils/filters";
 import { applyTheme } from "../state/kioskSettings";
 import { authHeader, handleAuthError } from "./authService";
+import { setBrand, refreshBrand } from "../state/brand";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:4000";
 
@@ -28,6 +29,7 @@ export async function loadRuntimeConfig() {
   appConfig.settings = s; // dibaca langsung oleh mesin state & hook kamera (bukan lewat React)
   setFilters(s.editor?.filters, s.editor);
   applyTheme(s.display?.colors);
+  setBrand(s.display?.brand);
   return s;
 }
 
@@ -36,7 +38,7 @@ export const getPublicSettings = () => request("/api/settings/public", { auth: f
 // ---------- Admin ----------
 
 export const getAdminSettings = () => request("/api/settings");
-export const saveAdminSettings = (patch) => request("/api/settings", { method: "PUT", body: patch });
+export const saveAdminSettings = (patch) => request("/api/settings", { method: "PUT", body: patch }).then((r) => { refreshBrand(); return r; }); // logo / nama baru langsung dipakai
 export const setPaymentMode = (mode) => request("/api/settings/payment-mode", { method: "PUT", body: { mode } });
 export const regeneratePosApiKey = () => request("/api/settings/pos-api-key/regenerate", { method: "POST" });
 export const getCloudStatus = () => request("/api/cloud/status");

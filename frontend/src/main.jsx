@@ -7,6 +7,9 @@ import '@fontsource/space-mono/400.css'
 import '@fontsource/space-mono/700.css'
 import './index.css'
 import App from './App.jsx'
+import { refreshBrand } from './state/brand'
+
+refreshBrand() // logo & nama aplikasi (Admin > Tampilan); yang tersimpan terakhir langsung dipakai selagi menunggu
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

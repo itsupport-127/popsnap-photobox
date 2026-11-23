@@ -2,7 +2,7 @@ import React, { useRef } from "react";
 import TemplatePreview from "../components/TemplatePreview";
 import useCategories from "../hooks/useCategories";
 import TemplateDecor from "../components/TemplateDecor";
-import logo from "../assets/logo-popsnap.png";
+import BrandLogo from "../components/BrandLogo";
 import StepBadge from "../components/StepBadge";
 import useShape from "../hooks/useShape";
 import GroupIcon from "../components/GroupIcon";
@@ -96,7 +96,7 @@ function TemplateList({ session, dispatch, templates, category }) {
     <div className="kiosk-screen strip-screen h-full w-full overflow-hidden" data-shape={shape}>
       <TemplateDecor />
       <div className="strip-stage">
-        <img src={logo} alt="PopSnap" draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
+        <BrandLogo draggable={false} className="strip-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width) }} />
 
         <div className="strip-panel" style={{ left: U(L.panel.left), top: U(L.panel.top), width: U(L.panel.width), height: U(L.panel.height) }} />
         <div className="strip-tray" style={{ left: U(L.tray.left), top: U(L.tray.top), width: U(L.tray.width), height: U(L.tray.height), borderRadius: U(L.tray.r) }}>
