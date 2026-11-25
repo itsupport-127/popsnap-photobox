@@ -60,7 +60,7 @@ export default function ReminderView({ reminder, items, vars, timerText, hint, c
       {!custom && <TemplateDecor />}
       <div className="rem-stage" style={{ "--sw": SW, "--sh": SH, "--u": `min(calc(100cqw / ${SW}), calc(100cqh / ${SH}))` }}>
         {(reminder.logoImage || !custom) && (
-          <img src={reminder.logoImage || brandLogo} alt="" draggable={false} className="rem-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width), height: reminder.logoImage ? U(70) : "auto", objectFit: "contain" }} />
+          <img src={reminder.logoImage || brandLogo} alt="" draggable={false} className="rem-logo" style={{ left: U(L.logo.left), top: U(L.logo.top), width: U(L.logo.width), height: reminder.logoImage ? U(70) : U(Math.round(L.logo.width * 268 / 805)), objectFit: "contain" }} />
         )}
 
         <div className="rem-panel" style={{ left: U(L.panel.left), top: U(L.panel.top), width: U(L.panel.width), background: reminder.panelColor, color: reminder.textColor, padding: `${U(18)} ${U(22)} ${U(25)}`, gap: U(16.5) }}>

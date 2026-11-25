@@ -1,7 +1,7 @@
 {
   "format": "popsnap-library-settings",
   "version": 1,
-  "savedAt": "2026-11-25T06:31:36.071Z",
+  "savedAt": "2026-11-25T06:35:56.727Z",
   "settings": {
     "event": {
       "name": "POPSNAP",
@@ -79,12 +79,12 @@
       },
       "auto": false,
       "autoCopies": 1,
-      "showButton": true,
       "price": 0,
+      "showButton": true,
       "both": false,
       "autorotate": true,
-      "paper": "auto",
       "fit": "fill",
+      "paper": "auto",
       "limit": {
         "enabled": false,
         "perEvent": 5000,
@@ -96,18 +96,13 @@
     },
     "camera": {
       "mode": "webcam",
-      "autoTrigger": true,
-      "resolution": 2,
-      "videoDeviceId": "",
-      "audioDeviceId": "",
-      "dslr": {
-        "host": "http://127.0.0.1:5513",
-        "camera": "",
-        "driver": "digicam",
-        "model": "",
-        "zModel": ""
-      },
       "orientation": "auto",
+      "autoTrigger": true,
+      "photoLight": {
+        "auto": false,
+        "target": 120,
+        "maxPct": 40
+      },
       "liveSource": "camera",
       "exposureSchedule": {
         "enabled": false,
@@ -118,16 +113,21 @@
         "live": {},
         "photo": {}
       },
-      "photoLight": {
-        "auto": false,
-        "target": 120,
-        "maxPct": 40
+      "resolution": 2,
+      "videoDeviceId": "",
+      "audioDeviceId": "",
+      "dslr": {
+        "host": "http://127.0.0.1:5513",
+        "camera": "",
+        "driver": "digicam",
+        "model": "",
+        "zModel": ""
       },
       "liveView": {
-        "clipRotation": 0,
         "enabled": true,
         "mirror": true,
         "rotation": 0,
+        "clipRotation": 0,
         "displayOnStart": false,
         "guide": true,
         "fitTemplate": false,
@@ -229,7 +229,7 @@
         "secondary": "#4082AE"
       },
       "brand": {
-        "logo": "",
+        "logo": "/uploads/asset-tbeWJRGKXM2S.png",
         "name": "POPSNAP"
       },
       "startScreen": {
@@ -241,9 +241,9 @@
         "triggerKeys": true
       },
       "capture": {
+        "manualTrigger": true,
         "manualScope": "first",
         "captureHint": "pulse",
-        "manualTrigger": true,
         "autoSequence": true,
         "countdownFirst": 5,
         "countdownOthers": 5,

@@ -90,7 +90,7 @@ export default function AdminApp({ user: initialUser, onLogout }) {
                 className="flex items-center gap-1 px-3 py-2 bg-white border-b border-[#D5DCE4] shadow-[0_2px_10px_rgba(24,27,35,0.06)] overflow-x-auto overflow-y-hidden [&>*]:shrink-0 [scrollbar-width:thin]"
                 onWheel={(e) => { if (e.deltaY && !e.deltaX) e.currentTarget.scrollLeft += e.deltaY; }}
               >
-                <BrandLogo className="h-11 w-auto mr-3 select-none" draggable={false} />
+                <BrandLogo className="h-11 w-[132px] mr-3 select-none" draggable={false} />
                 <Link to="/admin" className="flex flex-col items-center gap-1 px-3 py-1 text-[12px] text-[#262A38] hover:text-[#E02843]">
                   <Icon name="home" size={26} /> Menu
                 </Link>

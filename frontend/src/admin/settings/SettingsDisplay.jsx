@@ -64,9 +64,9 @@ export default function SettingsDisplay({ s, set, setError, only }) {
 
       {vis("LOGO & NAMA APLIKASI") && (
       <Card title="LOGO & NAMA APLIKASI">
-        <Row label="Logo" hint="Tampil di layar Start, pilih template, pembayaran, sesi foto, login, dan menu admin. Kosong = logo POPSNAP bawaan. Disarankan PNG transparan, lebar sekitar 800 px.">
+        <Row label="Logo" hint="Tampil di layar Start, pilih template, pembayaran, sesi foto, login, dan menu admin. Kosong = logo POPSNAP bawaan. Disarankan PNG transparan, lebar sekitar 800 px dengan perbandingan lebar:tinggi 3:1 (seperti kotak pratinjau). Logo dengan bentuk lain (persegi / tinggi) tetap muat utuh dan tidak menabrak teks, tetapi tampil lebih kecil di dalam kotaknya.">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="w-48 h-20 rounded-lg border border-[#C7D0DA] bg-[#4082AE] flex items-center justify-center overflow-hidden p-2">
+            <div className="w-48 aspect-[805/268] rounded-lg border border-[#C7D0DA] bg-[#4082AE] flex items-center justify-center overflow-hidden" title="Kotak logo (3:1): logo dimuat utuh di dalam kotak ini">
               <img src={brand.logo ? abs(brand.logo) : defaultLogo} alt="" className="max-w-full max-h-full object-contain" />
             </div>
             <ImagePicker value={brand.logo} onChange={(v) => set(["display", "brand", "logo"], v)} onError={setError} />
