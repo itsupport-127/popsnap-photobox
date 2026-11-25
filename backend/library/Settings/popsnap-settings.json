@@ -1,7 +1,7 @@
 {
   "format": "popsnap-library-settings",
   "version": 1,
-  "savedAt": "2026-11-19T04:01:24.765Z",
+  "savedAt": "2026-11-25T06:31:36.071Z",
   "settings": {
     "event": {
       "name": "POPSNAP",
@@ -29,6 +29,16 @@
       },
       "kbSeeded": true,
       "virtualKeyboard": "builtin",
+      "flow": {
+        "steps": [
+          "disclaimer",
+          "template",
+          "payment",
+          "consent",
+          "reminder"
+        ]
+      },
+      "rawFilter": false,
       "consent": {
         "enabled": true,
         "title": "IZIN FOTO",
@@ -99,6 +109,10 @@
       },
       "orientation": "auto",
       "liveSource": "camera",
+      "exposureSchedule": {
+        "enabled": false,
+        "periods": []
+      },
       "exposure": {
         "split": false,
         "live": {},
@@ -131,6 +145,7 @@
       }
     },
     "editor": {
+      "showNoFilter": true,
       "filters": [
         {
           "id": "bw",
@@ -212,6 +227,10 @@
         "primary": "#E02843",
         "buttonText": "#FFFFFF",
         "secondary": "#4082AE"
+      },
+      "brand": {
+        "logo": "",
+        "name": "POPSNAP"
       },
       "startScreen": {
         "image": "",
