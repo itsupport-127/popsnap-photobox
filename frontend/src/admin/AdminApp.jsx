@@ -9,6 +9,7 @@ import PaymentPage from "./PaymentPage";
 import VoucherPage from "./VoucherPage";
 import SettingsPage from "./SettingsPage";
 import ToolsPage from "./ToolsPage";
+import PricesPage from "./PricesPage";
 import CameraSettingsPage from "./CameraSettingsPage";
 import HelpPage from "./HelpPage";
 import UsersPage from "./UsersPage";
@@ -38,6 +39,7 @@ export const MODE_LABEL = {
 const NAV = [
   { to: "/admin/settings", icon: "gear", label: "Pengaturan", perm: ["settings.manage"] },
   { to: "/admin/template", icon: "image", label: "Template", perm: ["template.manage"] },
+  { to: "/admin/prices", icon: "wallet", label: "Harga", perm: ["template.manage"] },
   { to: "/admin/stickers", icon: "sticker", label: "Stiker", perm: ["template.manage"] },
   { to: "/admin/flow", icon: "refresh", label: "Alur", perm: ["settings.manage"] },
   { to: "/admin/filters", icon: "eye", label: "Filter", perm: ["settings.manage"] },
@@ -130,6 +132,7 @@ export default function AdminApp({ user: initialUser, onLogout }) {
               <main className="flex-1 overflow-auto">
                 <Routes>
                   <Route index element={<AdminHome user={user} />} />
+                  <Route path="prices" element={guard(<PricesPage />, "template.manage")} />
                   <Route path="stickers" element={guard(<StickersPage />, "template.manage")} />
                   <Route path="filters" element={guard(<FiltersPage />, "settings.manage")} />
                   <Route path="check" element={guard(<ReadyCheckPage />, "settings.manage")} />

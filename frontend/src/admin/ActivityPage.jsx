@@ -19,6 +19,8 @@ const ACTIONS = {
   "pos.key_regenerate": ["Buat ulang API key kasir", "warn"],
   "template.create": ["Buat template", "ok"],
   "template.update": ["Simpan template", ""],
+  "template.price.bulk": ["Ubah harga template (menu Harga)", "warn"],
+  "template.price.undo": ["Batalkan perubahan harga", "warn"],
   "template.delete": ["Hapus template", "bad"],
   "template.import": ["Impor template", "ok"],
   "template.export": ["Ekspor template", ""],

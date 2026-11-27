@@ -36,6 +36,12 @@ Log ini merangkum seluruh pengerjaan per tanggal (dari riwayat git, 24 Okt - 25 
 
 ## Log per tanggal (terbaru di atas)
 
+### 27 Nov 2026: menu Harga
+- **Admin > Harga** (menu baru): tabel semua template dengan harga yang bisa diketik langsung per baris, filter (cari nama, Live / Draft, kategori), dan **aksi massal**: set jadi satu harga, naik / turun Rp atau %, pembulatan (Rp 500 / 1.000 / 5.000), gratiskan, dan "Samakan semua template Live" (untuk alur bayar dulu). Perubahan baru tersimpan setelah tombol Simpan; ada tombol Batalkan perubahan terakhir.
+- Backend: `PUT /api/templates/prices` (atomik: satu harga tidak valid = tidak ada yang berubah; harga 0 sampai Rp 10.000.000; tercatat di log aktivitas sebagai "Ubah harga template (menu Harga)").
+- Berkas: `PricesPage.jsx`, `AdminApp.jsx`, `ActivityPage.jsx`, `backend/server.js`; tes `backend/test/template-prices.js`.
+- Harga GIF / Boomerang / Video tetap di Pengaturan (ditampilkan hanya-baca di menu Harga).
+
 ### 23-25 Nov 2026: merek aplikasi
 - **Logo dan nama aplikasi dapat diganti** di Admin > Pengaturan > Tampilan. Kosong = logo dan nama POPSNAP bawaan. Dipakai di layar booth, login, header admin, dan layar pengingat.
 - **Tata letak logo responsif**: logo selalu dimuat di kotak 3:1 (rasio logo bawaan) dengan `object-fit: contain`, jadi logo persegi / tinggi / lebar tidak menabrak teks di layar landscape, portrait, maupun persegi. Pratinjau di Admin memakai kotak yang sama. File: `BrandLogo.jsx`, `ReminderView.jsx`, `AdminApp.jsx`, `SettingsDisplay.jsx`.

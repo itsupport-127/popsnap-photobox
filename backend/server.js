@@ -882,6 +882,41 @@ function saveUploadedFile(file) {
 
 // Simpan SELURUH layer (posisi, urutan depan-belakang, isi tiap elemen) + harga.
 // Dipanggil tiap kali admin klik "Simpan" di editor.
+// Ubah HARGA banyak template sekaligus (menu Admin > Harga). Atomik: kalau ada satu yang tidak valid, tidak ada yang berubah.
+// body: { items: [{ id, price }] }. Mengembalikan daftar { id, name, from, to } supaya halaman bisa menampilkan "Batalkan" (kirim balik harga lama).
+const MAX_TEMPLATE_PRICE = 10_000_000;
+app.put("/api/templates/prices", requirePerm("template.manage"), (req, res) => {
+  const items = req.body?.items;
+  if (!Array.isArray(items) || !items.length || items.length > 2000) return res.status(400).json({ error: "items wajib berupa daftar 1-2000 template." });
+  const want = new Map();
+  for (const it of items) {
+    const price = Number(it?.price);
+    if (typeof it?.id !== "string" || !it.id) return res.status(400).json({ error: "Ada template tanpa id." });
+    if (!Number.isFinite(price) || price < 0 || price > MAX_TEMPLATE_PRICE) return res.status(400).json({ error: `Harga tidak valid (0 sampai ${MAX_TEMPLATE_PRICE.toLocaleString("id-ID")}).` });
+    want.set(it.id, Math.round(price));
+  }
+  const rows = new Map(db.prepare(`SELECT id, name, price FROM templates WHERE id IN (${[...want.keys()].map(() => "?").join(",")})`).all(...want.keys()).map((r) => [r.id, r]));
+  const missing = [...want.keys()].filter((id) => !rows.has(id));
+  if (missing.length) return res.status(404).json({ error: "Ada template yang tidak ditemukan (mungkin sudah dihapus). Muat ulang halaman.", missing });
+  const changed = [];
+  db.exec("BEGIN");
+  try {
+    const up = db.prepare("UPDATE templates SET price = ? WHERE id = ?");
+    for (const [id, to] of want) {
+      const r = rows.get(id), from = r.price || 0;
+      if (from === to) continue;
+      up.run(to, id);
+      changed.push({ id, name: r.name, from, to });
+    }
+    db.exec("COMMIT");
+  } catch (e) { try { db.exec("ROLLBACK"); } catch { /* sudah */ } console.error("[harga] gagal:", e.message); return res.status(500).json({ error: "Gagal menyimpan harga. Tidak ada yang berubah." }); }
+  if (changed.length) {
+    const sample = changed.slice(0, 15).map((c) => `${c.name}: ${c.from} → ${c.to}`);
+    logActivity(req.user, req.body?.undo ? "template.price.undo" : "template.price.bulk", `${changed.length} template`, { jumlah: changed.length, contoh: sample, ...(changed.length > 15 ? { lainnya: changed.length - 15 } : {}) }, req);
+  }
+  res.json({ ok: true, changed, unchanged: want.size - changed.length });
+});
+
 app.put("/api/templates/:id/layers", requirePerm("template.manage"), (req, res) => {
   const { layers, price, name, category, backgroundColor, paperSize, orientation, dpi, canvasWidth, canvasHeight } = req.body;
   // WAJIB divalidasi — JSON.stringify(undefined) bukan JSON valid dan bakal
